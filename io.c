@@ -8,6 +8,7 @@ void gotoxy(POSITION pos) {
     SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
 }
 
+//색 입히는 함수
 void set_color(int color) {
     SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), color);
 }
@@ -29,9 +30,9 @@ KEY get_key(void) {
     switch (byte) {
     case 'q': return k_quit;  // 'q'를 누르면 종료
     case 32: return k_space;  // 스페이스바 키 추가
-    case 27: return k_esc;
+    case 27: return k_esc;  //esc키 추가
     case 224:
-        byte = _getch();  // MSB 224가 입력 되면 1바이트 더 전달 받기
+        byte = _getch();
         switch (byte) {
         case 72: return k_up;
         case 75: return k_left;

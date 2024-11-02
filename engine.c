@@ -10,10 +10,12 @@ void init(void);
 void intro(void);
 void Construction(void);
 void Biome(void);
+void unit(void);
 void outro(void);
 void cursor_move(DIRECTION dir);
 void cursor_double_move(DIRECTION dir, int times);
 void sample_obj_move(void);
+void sample_obj1_move(void);
 void StatusWindow(void);
 void system_message(void);
 void command_message(void);
@@ -38,14 +40,24 @@ RESOURCE resource = {
    .population_max = 0
 };
 
+//오브젝트 샘플 샌드웜 될 예정
 OBJECT_SAMPLE obj = {
-   .pos = {1, 1},
+   .pos = {5, 5},
    .dest = {MAP_HEIGHT - 2, MAP_WIDTH - 2},
    .repr = 'W',
    .speed = 300,
    .next_move_time = 300
 };
 
+OBJECT_SAMPLE1 obj1 = {
+    .pos = {15, 50},
+    .dest = {(MAP_HEIGHT + 2) - MAP_HEIGHT,(MAP_WIDTH + 2) - MAP_HEIGHT},
+    .repr = 'W',
+    .speed = 300,
+    .next_move_time = 300
+};
+
+//아군베이스
 OBJECT_BUILDING ally_base = {
    .pos1 = {15, 1},
    .pos2 = {15, 2},
@@ -55,6 +67,7 @@ OBJECT_BUILDING ally_base = {
    .layer = 0
 };
 
+//적베이스
 OBJECT_BUILDING enemy_base = {
    .pos1 = {1, 58},
    .pos2 = {1, 57},
@@ -64,6 +77,7 @@ OBJECT_BUILDING enemy_base = {
    .layer = 0
 };
 
+//아군 장판
 OBJECT_BUILDING ally_pad = {
    .pos1 = {15, 3},
    .pos2 = {15, 4},
@@ -73,6 +87,7 @@ OBJECT_BUILDING ally_pad = {
    .layer = 0
 };
 
+//적군 장판
 OBJECT_BUILDING enemy_pad = {
    .pos1 = {2, 55},
    .pos2 = {2, 56},
@@ -82,6 +97,7 @@ OBJECT_BUILDING enemy_pad = {
    .layer = 0
 };
 
+//아군 스파이스
 OBJECT_BUILDING ally_spice = {
    .pos1 = {13, 1},  // 아군 스파이스 위치
    .repr = '5',      // 스파이스를 나타내는 문자
@@ -131,6 +147,17 @@ OBJECT_BUILDING ROCK_5 = {
    .layer = 0
 };
 
+UNIT Harverster = {
+    .pos1 = {14, 1},
+    .repr = 'H',
+    .layer = 0
+};
+
+UNIT Haconen = {
+    .pos2 = {3, 58},
+    .repr = 'H',
+    .layer = 0
+};
 
 
 /* ================= main() =================== */
@@ -141,6 +168,7 @@ int main(void) {
     init();
     Construction();
     Biome();
+    unit();
     StatusWindow();
     system_message();
     command_message();
@@ -171,6 +199,7 @@ int main(void) {
 
         // 샘플 오브젝트 동작
         sample_obj_move();
+        sample_obj1_move();
 
         // 화면 출력
         display(resource, map, cursor);
@@ -254,8 +283,15 @@ void Biome(void) {
     map[ROCK_5.layer][ROCK_5.pos1.row][ROCK_5.pos1.column] = ROCK_5.repr;
 }
 
+void unit(void) {
+    //아군 하베스터
+    map[Harverster.layer][Harverster.pos1.row][Harverster.pos1.column] = Harverster.repr;
 
+    //적군 하코넨
+    map[Haconen.layer][Haconen.pos2.row][Haconen.pos2.column] = Haconen.repr;
+}
 
+//#으로 맵 틀 만듬
 void init(void) {
     // layer 0(map[0])에 지형 생성
     for (int j = 0; j < MAP_WIDTH; j++) {
@@ -441,12 +477,12 @@ POSITION sample_obj_next_position(void) {
     // 목적지 도착. 지금은 단순히 원래 자리로 왕복
     if (diff.row == 0 && diff.column == 0) {
         if (obj.dest.row == 1 && obj.dest.column == 1) {
-            // topleft --> bottomright로 목적지 설정
+            // topleft에서 bottomright로 목적지 설정
             POSITION new_dest = { MAP_HEIGHT - 2, MAP_WIDTH - 2 };
             obj.dest = new_dest;
         }
         else {
-            // bottomright --> topleft로 목적지 설정
+            // bottomright -> topleft
             POSITION new_dest = { 1, 1 };
             obj.dest = new_dest;
         }
@@ -462,7 +498,7 @@ POSITION sample_obj_next_position(void) {
     }
 
     // next_pos가 맵을 벗어나지 않고, (지금은 없지만)장애물에 부딪히지 않으면 다음 위치로 이동
-    // 지금은 충돌 시 아무것도 안 하는데, 나중에는 장애물을 피해가거나 적과 전투를 하거나... 등등
+    // 지금은 충돌 시 아무것도 안 하는데, 나중에는 장애물을 피해가거나 적과 전투를 하거나 등등
     POSITION next_pos = pmove(obj.pos, dir);
     if (1 <= next_pos.row && next_pos.row <= MAP_HEIGHT - 2 && \
         1 <= next_pos.column && next_pos.column <= MAP_WIDTH - 2 && \
@@ -472,6 +508,48 @@ POSITION sample_obj_next_position(void) {
     }
     else {
         return obj.pos;  // 제자리
+    }
+}
+
+POSITION sample_obj1_next_position(void) {
+    // 현재 위치와 목적지를 비교해서 이동 방향 결정   
+    POSITION diff = psub(obj1.dest, obj1.pos);
+    DIRECTION dir;
+
+    // 목적지 도착. 지금은 단순히 원래 자리로 왕복
+    if (diff.row == 0 && diff.column == 0) {
+        if (obj1.dest.row == 1 && obj1.dest.column == 1) {
+            // topleft에서 bottomright로 목적지 설정
+            POSITION new_dest = { MAP_HEIGHT - 2, MAP_WIDTH - 2 };
+            obj1.dest = new_dest;
+        }
+        else {
+            // bottomright -> topleft
+            POSITION new_dest = { 1, 1 };
+            obj1.dest = new_dest;
+        }
+        return obj1.pos;
+    }
+
+    // 가로축, 세로축 거리를 비교해서 더 먼 쪽 축으로 이동
+    if (abs(diff.row) >= abs(diff.column)) {
+        dir = (diff.row >= 0) ? d_down : d_up;
+    }
+    else {
+        dir = (diff.column >= 0) ? d_right : d_left;
+    }
+
+    // next_pos가 맵을 벗어나지 않고, (지금은 없지만)장애물에 부딪히지 않으면 다음 위치로 이동
+    // 지금은 충돌 시 아무것도 안 하는데, 나중에는 장애물을 피해가거나 적과 전투를 하거나 등등
+    POSITION next_pos = pmove(obj1.pos, dir);
+    if (1 <= next_pos.row && next_pos.row <= MAP_HEIGHT - 2 && \
+        1 <= next_pos.column && next_pos.column <= MAP_WIDTH - 2 && \
+        map[1][next_pos.row][next_pos.column] < 0) {
+
+        return next_pos;
+    }
+    else {
+        return obj1.pos;  // 제자리
     }
 }
 
@@ -487,6 +565,20 @@ void sample_obj_move(void) {
     map[1][obj.pos.row][obj.pos.column] = obj.repr;
 
     obj.next_move_time = sys_clock + obj.speed;
+}
+
+void sample_obj1_move(void) {
+    if (sys_clock <= obj1.next_move_time) {
+        // 아직 시간이 안 됐음
+        return;
+    }
+
+    // 오브젝트는 layer1(map[1])에 저장
+    map[1][obj1.pos.row][obj1.pos.column] = -1;
+    obj1.pos = sample_obj1_next_position();
+    map[1][obj1.pos.row][obj1.pos.column] = obj1.repr;
+
+    obj1.next_move_time = sys_clock + obj1.speed;
 }
 
 //어떤 지형인지 나오게함.
@@ -526,9 +618,6 @@ void print_terrain(void) {
     else if (terrain == '5') {
         printf("스파이스");
     }
-    else if (terrain == 'o') {
-        printf("유닛");
-    }
     else {
         printf("사막 지형");
     }
@@ -536,7 +625,7 @@ void print_terrain(void) {
 
 void clean_status(void) {
     POSITION pos;
-    // 상태창 내부 영역만 지우기 (테두리는 유지)
+    // 상태창 내부 지우기
     for (int row = 2; row < MAP_HEIGHT; row++) {
         for (int col = MAP_WIDTH + 3; col < MAP_WIDTH + 58; col++) {
             pos.row = row;
@@ -544,5 +633,16 @@ void clean_status(void) {
             gotoxy(pos);
             printf(" ");
         }
+    }
+}
+
+// 스파이스 매장지 생성
+void create_spice_deposit(POSITION pos) {
+    // 10%의 확률로 스파이스 매장지 생성
+    if (rand() % 100 < 10 && map[0][pos.row][pos.column] == ' ') {
+        map[0][pos.row][pos.column] = '5';
+        // 스파이스 양은 1~5 사이 랜덤
+        int amount = rand() % 5 + 1;
+
     }
 }

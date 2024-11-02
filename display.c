@@ -8,7 +8,7 @@
 #include "display.h"
 #include "io.h"
 
-// 출력할 내용들의 좌상단(topleft) 좌표
+// 출력할 내용들 좌표
 const POSITION resource_pos = { 0, 0 };
 const POSITION map_pos = { 1, 0 };
 
@@ -30,10 +30,6 @@ void display(
     display_resource(resource);
     display_map(map);
     display_cursor(cursor);
-    // display_system_message()
-    // display_object_info()
-    // display_commands()
-    // ...
 }
 
 void display_resource(RESOURCE resource) {
@@ -45,7 +41,7 @@ void display_resource(RESOURCE resource) {
     );
 }
 
-// subfunction of draw_map()
+//맵 함수
 void project(char src[N_LAYER][MAP_HEIGHT][MAP_WIDTH], char dest[MAP_HEIGHT][MAP_WIDTH]) {
     for (int i = 0; i < MAP_HEIGHT; i++) {
         for (int j = 0; j < MAP_WIDTH; j++) {
@@ -66,6 +62,7 @@ void project(char src[N_LAYER][MAP_HEIGHT][MAP_WIDTH], char dest[MAP_HEIGHT][MAP
     }
 }
 
+//색 함수
 int get_color_at(POSITION pos) {
     char ch = backbuf[pos.row][pos.column];
 
@@ -73,6 +70,8 @@ int get_color_at(POSITION pos) {
     switch (ch) {
     case 'B':
         return (pos.row >= 15 && pos.column <= 2) ? COLOR_BLUE : COLOR_RED;
+    case 'H':
+        return (pos.row >= 14 && pos.column <= 3) ? COLOR_BLUE : COLOR_RED;
     case '5':
         return COLOR_ORANGE;
     case 'P':
@@ -110,20 +109,20 @@ void display_cursor(CURSOR cursor) {
     POSITION prev = cursor.previous;
     POSITION curr = cursor.current;
 
-    // 이전 위치의 문자를 backbuf에서 가져옵니다.
+    // 이전 위치의 문자를 backbuf에서 가져옴
     char prev_char = backbuf[prev.row][prev.column];
     int prev_color = get_color_at(prev); // 이전 위치의 색상
 
-    // 현재 위치의 문자를 backbuf에서 가져옵니다.
+    // 현재 위치의 문자를 backbuf에서 가져옴
     char curr_char = backbuf[curr.row][curr.column];
 
-    // 이전 위치를 원래 문자와 색상으로 복원합니다.
+    // 이전 위치를 원래 문자와 색상으로 복원옴
     printc(padd(map_pos, prev), prev_char, prev_color); // 이전 위치 복원
 
-    // 현재 위치에 커서 표시 (커서 색상으로 출력)
+    // 현재 위치에 커서 표시 커서 색상 출력
     printc(padd(map_pos, curr), curr_char, COLOR_CURSOR); // 현재 위치에 커서 출력
 
-    // frontbuf 업데이트 (커서가 현재 위치에 올바르게 표시되도록)
+    // frontbuf 업데이트
     frontbuf[prev.row][prev.column] = prev_char; // 이전 위치의 frontbuf 업데이트
     frontbuf[curr.row][curr.column] = COLOR_CURSOR; // 현재 위치의 frontbuf 업데이트
 }

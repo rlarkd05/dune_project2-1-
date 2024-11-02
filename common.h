@@ -104,4 +104,21 @@ typedef struct {
 	int next_move_time; // 다음 이동 시간
 } OBJECT_SAMPLE;
 
+typedef struct {
+	POSITION pos;      // 현재 위치
+	POSITION dest;     // 목적지
+	char repr;         // 오브젝트의 표현 문자
+	int speed;         // 이동 속도
+	int next_move_time; // 다음 이동 시간
+} OBJECT_SAMPLE1;
+
+typedef struct {
+	POSITION pos1; // 건물 크기 1
+	POSITION pos2; // 건물 크기 2
+	POSITION pos3; // 건물 크기 3
+	POSITION pos4; // 건물 크기 4
+	char repr;     // 건물 이름
+	int layer;     // 몇번 째 레이어에 들어가는건지 구분 <-- 필요하면 사용
+} UNIT;
+
 #endif
