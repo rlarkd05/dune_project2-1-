@@ -41,11 +41,11 @@ RESOURCE resource = {
 OBJECT_SAMPLE obj = {
    .pos = {1, 1},
    .dest = {MAP_HEIGHT - 2, MAP_WIDTH - 2},
-   .repr = 'o',
+   .repr = 'W',
    .speed = 300,
    .next_move_time = 300
 };
-//아군기지
+
 OBJECT_BUILDING ally_base = {
    .pos1 = {15, 1},
    .pos2 = {15, 2},
@@ -54,7 +54,7 @@ OBJECT_BUILDING ally_base = {
    .repr = 'B',
    .layer = 0
 };
-//적기지
+
 OBJECT_BUILDING enemy_base = {
    .pos1 = {1, 58},
    .pos2 = {1, 57},
@@ -63,7 +63,7 @@ OBJECT_BUILDING enemy_base = {
    .repr = 'B',
    .layer = 0
 };
-//아군 장판
+
 OBJECT_BUILDING ally_pad = {
    .pos1 = {15, 3},
    .pos2 = {15, 4},
@@ -72,22 +72,22 @@ OBJECT_BUILDING ally_pad = {
    .repr = 'P',
    .layer = 0
 };
-// 적군 장판
+
 OBJECT_BUILDING enemy_pad = {
    .pos1 = {2, 55},
    .pos2 = {2, 56},
    .pos3 = {1, 55},
    .pos4 = {1, 56},
-   .repr = 'P',  
+   .repr = 'P',  // E는 적군 장판을 나타내는 문자
    .layer = 0
 };
-//아군 스파이스
+
 OBJECT_BUILDING ally_spice = {
-   .pos1 = {13, 1},  
-   .repr = '5',      
-   .layer = 0        
+   .pos1 = {13, 1},  // 아군 스파이스 위치
+   .repr = '5',      // 스파이스를 나타내는 문자
+   .layer = 0        // 첫 번째 레이어
 };
-//적군 스파이승
+
 OBJECT_BUILDING enemy_spice = {
    .pos1 = {4, 58},
    .repr = '5', // 스파이스를 나타내는 문자
@@ -189,7 +189,7 @@ void outro(void) {
     printf("exiting...\n");
     exit(0);
 }
-//커서 더블클릭
+
 void cursor_double_move(DIRECTION dir, int times) {
     for (int i = 0; i < times; i++) {
         cursor_move(dir);
@@ -271,16 +271,17 @@ void init(void) {
         }
     }
 
-    // layer 1(map[1])은 비워 두기(-1로 채움)
+    // layer 1(map[1]) 초기화 - 모든 위치를 -1로 설정
     for (int i = 0; i < MAP_HEIGHT; i++) {
         for (int j = 0; j < MAP_WIDTH; j++) {
             map[1][i][j] = -1;
         }
     }
 
-    // object sample
-    map[1][obj.pos.row][obj.pos.column] = 'o';
-
+    // 샘플 오브젝트 초기화 - Layer 1에 배치
+    obj.pos.row = 1;
+    obj.pos.column = 1;
+    map[1][obj.pos.row][obj.pos.column] = obj.repr;  // 'o' 문자 배치
 }
 
 //상태창
@@ -501,7 +502,7 @@ void print_terrain(void) {
     gotoxy(pos);
     printf("=== 지형 정보 ===");
 
-    // ㅁ스페이스바를 클릭한 위치
+    //스페이스바를 클릭한 위치
     pos.row = 4;
     pos.column = MAP_WIDTH + 4;
     gotoxy(pos);
@@ -525,7 +526,7 @@ void print_terrain(void) {
     else if (terrain == '5') {
         printf("스파이스");
     }
-    else if (object == 'o') { //추후에 추가 예정(임시방편)
+    else if (terrain == 'o') {
         printf("유닛");
     }
     else {

@@ -30,6 +30,10 @@ void display(
     display_resource(resource);
     display_map(map);
     display_cursor(cursor);
+    // display_system_message()
+    // display_object_info()
+    // display_commands()
+    // ...
 }
 
 void display_resource(RESOURCE resource) {
@@ -46,11 +50,17 @@ void project(char src[N_LAYER][MAP_HEIGHT][MAP_WIDTH], char dest[MAP_HEIGHT][MAP
     for (int i = 0; i < MAP_HEIGHT; i++) {
         for (int j = 0; j < MAP_WIDTH; j++) {
             dest[i][j] = ' '; // 초기값 설정
-            for (int k = 0; k < N_LAYER; k++) {
-                if (src[k][i][j] >= 0) { // 유효한 문자일 때만
-                    dest[i][j] = src[k][i][j]; // 가장 위에 있는 레이어의 값 저장
-                    break; // 첫 번째로 발견된 문자만 사용
-                }
+
+            // Layer 1(오브젝트 레이어)을 먼저 체크
+            // -1이 아닌 모든 값을 체크하도록 수정
+            if (src[1][i][j] >= 0) {
+                dest[i][j] = src[1][i][j];
+                continue;  // Layer 1에 오브젝트가 있으면 Layer 0은 확인하지 않음
+            }
+
+            // Layer 0 체크
+            if (src[0][i][j] != 0) {
+                dest[i][j] = src[0][i][j];
             }
         }
     }
@@ -71,7 +81,7 @@ int get_color_at(POSITION pos) {
         return COLOR_GRAY;
     case '#':
         return COLOR_BLACK;
-    case 'o':
+    case 'W':
         return COLOR_YELLOW;
     default:
         return COLOR_DEFAULT; // 기본 색상
@@ -80,28 +90,18 @@ int get_color_at(POSITION pos) {
 
 
 void display_map(char map[N_LAYER][MAP_HEIGHT][MAP_WIDTH]) {
-    project(map, backbuf); // 새로운 맵을 backbuf에 프로젝트합니다.
+    project(map, backbuf);
 
     for (int i = 0; i < MAP_HEIGHT; i++) {
         for (int j = 0; j < MAP_WIDTH; j++) {
             char current_char = backbuf[i][j];
-
-            // 현재 위치의 색상을 가져옵니다.
             int color = get_color_at((POSITION) { i, j });
 
-            // 변경된 부분만 화면에 출력
-            if (frontbuf[i][j] != current_char) {
-                // 1. 공백일 경우 아무 색상도 적용하지 않음
-                if (current_char == ' ') {
-                    void printc(POSITION pos, char ch, int color);
-                }
-                else {
-                    // 2. 문자열은 원래 색상으로 출력
-                    printc(padd(map_pos, (POSITION) { i, j }), current_char, color);
-                }
-
-                // frontbuf 업데이트
-                frontbuf[i][j] = current_char; // frontbuf 업데이트
+            // 이전 상태와 다르거나 오브젝트('W')인 경우 항상 출력
+            if (frontbuf[i][j] != current_char || current_char == 'W') {
+                POSITION pos = padd(map_pos, (POSITION) { i, j });
+                printc(pos, current_char, color);
+                frontbuf[i][j] = current_char;
             }
         }
     }
