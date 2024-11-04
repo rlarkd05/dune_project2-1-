@@ -22,6 +22,8 @@ void command_message(void);
 void print_terrain(void);
 void clean_status(void);
 POSITION sample_obj_next_position(void);
+POSITION find_nearest_unit(POSITION current_pos);
+void spawn_spice(POSITION pos);
 
 
 /* ================= control =================== */
@@ -45,16 +47,16 @@ OBJECT_SAMPLE obj = {
    .pos = {5, 5},
    .dest = {MAP_HEIGHT - 2, MAP_WIDTH - 2},
    .repr = 'W',
-   .speed = 300,
-   .next_move_time = 300
+   .speed = 600,
+   .next_move_time = 600
 };
 
 OBJECT_SAMPLE1 obj1 = {
     .pos = {15, 50},
     .dest = {(MAP_HEIGHT + 2) - MAP_HEIGHT,(MAP_WIDTH + 2) - MAP_HEIGHT},
     .repr = 'W',
-    .speed = 300,
-    .next_move_time = 300
+    .speed = 600,
+    .next_move_time = 600
 };
 
 //아군베이스
@@ -150,13 +152,13 @@ OBJECT_BUILDING ROCK_5 = {
 UNIT Harverster = {
     .pos1 = {14, 1},
     .repr = 'H',
-    .layer = 0
+    .layer = 1
 };
 
 UNIT Haconen = {
     .pos2 = {3, 58},
     .repr = 'H',
-    .layer = 0
+    .layer = 1
 };
 
 
@@ -470,25 +472,18 @@ void cursor_move(DIRECTION dir) {
 
 
 POSITION sample_obj_next_position(void) {
-    // 현재 위치와 목적지를 비교해서 이동 방향 결정   
-    POSITION diff = psub(obj.dest, obj.pos);
-    DIRECTION dir;
+    // 가장 가까운 유닛의 위치 찾기
+    POSITION nearest_unit = find_nearest_unit(obj.pos);
 
-    // 목적지 도착. 지금은 단순히 원래 자리로 왕복
-    if (diff.row == 0 && diff.column == 0) {
-        if (obj.dest.row == 1 && obj.dest.column == 1) {
-            // topleft에서 bottomright로 목적지 설정
-            POSITION new_dest = { MAP_HEIGHT - 2, MAP_WIDTH - 2 };
-            obj.dest = new_dest;
-        }
-        else {
-            // bottomright -> topleft
-            POSITION new_dest = { 1, 1 };
-            obj.dest = new_dest;
-        }
+    // 유닛이 없으면 기존 움직임 유지
+    if (nearest_unit.row == -1) {
         return obj.pos;
     }
 
+    // 가장 가까운 유닛을 향해 이동
+    POSITION diff = psub(nearest_unit, obj.pos);
+    DIRECTION dir;
+
     // 가로축, 세로축 거리를 비교해서 더 먼 쪽 축으로 이동
     if (abs(diff.row) >= abs(diff.column)) {
         dir = (diff.row >= 0) ? d_down : d_up;
@@ -497,41 +492,44 @@ POSITION sample_obj_next_position(void) {
         dir = (diff.column >= 0) ? d_right : d_left;
     }
 
-    // next_pos가 맵을 벗어나지 않고, (지금은 없지만)장애물에 부딪히지 않으면 다음 위치로 이동
-    // 지금은 충돌 시 아무것도 안 하는데, 나중에는 장애물을 피해가거나 적과 전투를 하거나 등등
     POSITION next_pos = pmove(obj.pos, dir);
-    if (1 <= next_pos.row && next_pos.row <= MAP_HEIGHT - 2 && \
-        1 <= next_pos.column && next_pos.column <= MAP_WIDTH - 2 && \
-        map[1][next_pos.row][next_pos.column] < 0) {
+
+    // 이동 가능한 위치인지 확인
+    if (1 <= next_pos.row && next_pos.row <= MAP_HEIGHT - 2 &&
+        1 <= next_pos.column && next_pos.column <= MAP_WIDTH - 2) {
+
+        // 유닛을 만났는지 확인
+        if (map[1][next_pos.row][next_pos.column] == 'H') {
+            // 유닛 제거
+            map[1][next_pos.row][next_pos.column] = -1;
+            // 5% 확률로 스파이스 생성
+            if (rand() % 100 < 5) {
+                spawn_spice(next_pos);
+            }
+        }
+
+        // 2% 확률로 이동하면서 스파이스 생성
+        if (rand() % 100 < 30) {
+            spawn_spice(obj.pos);
+        }
 
         return next_pos;
     }
-    else {
-        return obj.pos;  // 제자리
-    }
+
+    return obj.pos;
 }
 
+// obj1(두 번째 샌드웜)에 대해서도 동일한 동작 구현
 POSITION sample_obj1_next_position(void) {
-    // 현재 위치와 목적지를 비교해서 이동 방향 결정   
-    POSITION diff = psub(obj1.dest, obj1.pos);
-    DIRECTION dir;
+    POSITION nearest_unit = find_nearest_unit(obj1.pos);
 
-    // 목적지 도착. 지금은 단순히 원래 자리로 왕복
-    if (diff.row == 0 && diff.column == 0) {
-        if (obj1.dest.row == 1 && obj1.dest.column == 1) {
-            // topleft에서 bottomright로 목적지 설정
-            POSITION new_dest = { MAP_HEIGHT - 2, MAP_WIDTH - 2 };
-            obj1.dest = new_dest;
-        }
-        else {
-            // bottomright -> topleft
-            POSITION new_dest = { 1, 1 };
-            obj1.dest = new_dest;
-        }
+    if (nearest_unit.row == -1) {
         return obj1.pos;
     }
 
-    // 가로축, 세로축 거리를 비교해서 더 먼 쪽 축으로 이동
+    POSITION diff = psub(nearest_unit, obj1.pos);
+    DIRECTION dir;
+
     if (abs(diff.row) >= abs(diff.column)) {
         dir = (diff.row >= 0) ? d_down : d_up;
     }
@@ -539,18 +537,26 @@ POSITION sample_obj1_next_position(void) {
         dir = (diff.column >= 0) ? d_right : d_left;
     }
 
-    // next_pos가 맵을 벗어나지 않고, (지금은 없지만)장애물에 부딪히지 않으면 다음 위치로 이동
-    // 지금은 충돌 시 아무것도 안 하는데, 나중에는 장애물을 피해가거나 적과 전투를 하거나 등등
     POSITION next_pos = pmove(obj1.pos, dir);
-    if (1 <= next_pos.row && next_pos.row <= MAP_HEIGHT - 2 && \
-        1 <= next_pos.column && next_pos.column <= MAP_WIDTH - 2 && \
-        map[1][next_pos.row][next_pos.column] < 0) {
+
+    if (1 <= next_pos.row && next_pos.row <= MAP_HEIGHT - 2 &&
+        1 <= next_pos.column && next_pos.column <= MAP_WIDTH - 2) {
+
+        if (map[1][next_pos.row][next_pos.column] == 'H') {
+            map[1][next_pos.row][next_pos.column] = -1;
+            if (rand() % 100 < 5) {
+                spawn_spice(next_pos);
+            }
+        }
+
+        if (rand() % 100 < 30) {
+            spawn_spice(obj1.pos);
+        }
 
         return next_pos;
     }
-    else {
-        return obj1.pos;  // 제자리
-    }
+
+    return obj1.pos;
 }
 
 void sample_obj_move(void) {
@@ -636,13 +642,32 @@ void clean_status(void) {
     }
 }
 
-// 스파이스 매장지 생성
-void create_spice_deposit(POSITION pos) {
-    // 10%의 확률로 스파이스 매장지 생성
-    if (rand() % 100 < 10 && map[0][pos.row][pos.column] == ' ') {
-        map[0][pos.row][pos.column] = '5';
-        // 스파이스 양은 1~5 사이 랜덤
-        int amount = rand() % 5 + 1;
+// 가장 가까운 유닛을 찾는 함수
+POSITION find_nearest_unit(POSITION current_pos) {
+    POSITION nearest = { 0, 0 }; //초기값 0,0
+    int min_distance = MAP_WIDTH * MAP_HEIGHT; // 최대 거리로 초기화
 
+    // 모든 맵을 순회하면서 유닛 찾기
+    for (int i = 0; i < MAP_HEIGHT; i++) {
+        for (int j = 0; j < MAP_WIDTH; j++) {
+            // 'H'는 하베스터나 하코넨 유닛을 나타냄 테스트를 하코넨과 하베스터로 진행했음
+            if (map[1][i][j] == 'H') {
+                POSITION unit_pos = { i, j }; //현재 유닛 위치
+                int distance = abs(current_pos.row - i) + abs(current_pos.column - j); //abs(제곱)(현재 샌드웜 위치 가로줄 - i) + (현재 샌드웜 위치 세로줄 - j) // 두 점 사이의 거리 공식 사용
+                if (distance < min_distance && distance > 0) { // 자기 자신 제외
+                    min_distance = distance; // 조건이 만족되면 min_distance를 distance로 갱신하고 nearest를 unit_pos로 설정한다. (거리저장)
+                    nearest = unit_pos;//이렇게 하면 점점 더 가까운 유닛을 찾으면서 nearest에 가장 가까운 유닛의 위치를 기록하게 됩니다. (위치 저장)
+                }
+            }
+        }
+    }
+    return nearest;
+}
+
+// 샌드웜이 스파이스를 생성하는 함수
+void spawn_spice(POSITION pos) {
+    // 15% 확률로 스파이스 생성
+    if (rand() % 100 < 15 && map[0][pos.row][pos.column] == ' ') {
+        map[0][pos.row][pos.column] = '5';
     }
 }
