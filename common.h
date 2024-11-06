@@ -38,6 +38,7 @@ typedef enum {
 	k_undef, // 정의되지 않은 키 입력   
 	k_space, // 스페이스바
 	k_esc, // esc키
+	k_h //h키
 } KEY;
 
 /* ================= 구조체 정의 =================== */
@@ -120,5 +121,12 @@ typedef struct {
 	char repr;     // 건물 이름
 	int layer;     // 몇번 째 레이어에 들어가는건지 구분 <-- 필요하면 사용
 } UNIT;
+
+typedef struct {
+	char type;              // 선택된 건물 타입
+	POSITION position;      // 선택된 건물의 위치
+	bool is_selected;       // 선택 상태
+	bool is_ally;          // 아군 건물 여부
+} SELECTED_BUILDING;
 
 #endif

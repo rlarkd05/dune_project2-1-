@@ -18,8 +18,9 @@
 #define COLOR_RED      0x4F   // 빨간색
 #define COLOR_ORANGE   0x6F  // 주황색
 #define COLOR_BLACK   0x0F  // 검은색
-#define COLOR_GRAY     0x808080   // 회색
-#define COLOR_YELLOW   14   //노란색
+#define FLOOR_BEIGE    0xE0 //베이지
+#define COLOR_GRAY     0x8F   // 회색
+#define COLOR_YELLOW   14   
 
 // 지금은 자원, 맵, 커서만 표시
 // 앞으로 화면에 표시할 내용들 여기에 추가하기

@@ -75,7 +75,7 @@ int get_color_at(POSITION pos) {
     case '5':
         return COLOR_ORANGE;
     case 'P':
-        return COLOR_BLACK;
+        return  FLOOR_BEIGE;
     case 'R':
         return COLOR_GRAY;
     case '#':

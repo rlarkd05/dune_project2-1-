@@ -21,6 +21,11 @@ void system_message(void);
 void command_message(void);
 void print_terrain(void);
 void clean_status(void);
+void select_building(void);
+void process_command(KEY key);
+void print_command_message(const char* message);
+void print_system_message(const char* message);
+bool can_produce_harvester(void);
 POSITION sample_obj_next_position(void);
 POSITION find_nearest_unit(POSITION current_pos);
 void spawn_spice(POSITION pos);
@@ -31,9 +36,17 @@ int sys_clock = 0;
 CURSOR cursor = { { 1, 1 }, {1, 1} };
 int last_key_time = 0;
 #define DOUBLE_PRESS_INTERVAL 200
+#define MAX_MSG_LINES 6  
 
 /* ================= game data =================== */
 char map[N_LAYER][MAP_HEIGHT][MAP_WIDTH] = { 0 };
+
+SELECTED_BUILDING selected_building = {
+    .type = ' ',
+    .position = {0, 0},
+    .is_selected = false,
+    .is_ally = false
+};
 
 RESOURCE resource = {
    .spice = 0,
@@ -174,6 +187,7 @@ int main(void) {
     StatusWindow();
     system_message();
     command_message();
+    print_terrain();
     display(resource, map, cursor);
 
     while (1) {
@@ -186,15 +200,26 @@ int main(void) {
         else {
             switch (key) {
             case k_space:
+                select_building();
                 print_terrain();
+                break;
+            case k_h:  // 'h', 'H' 대신 k_h 사용
+                if (selected_building.is_selected) {
+                    process_command(key);
+                }
+                break;
+            case k_esc:
+                if (selected_building.is_selected) {
+                    process_command(key);
+                }
                 break;
             case k_quit:
                 outro();
-            case k_esc:
-                clean_status();
-            case k_none:
-            case k_undef:
+                break;
             default:
+                if (selected_building.is_selected) {
+                    process_command(key);
+                }
                 break;
             }
         }
@@ -365,7 +390,7 @@ void system_message() {
     POSITION pos;
     int message_start_row = MAP_HEIGHT + 2; // 시스템 메시지 창의 시작 행
     int message_width = MAP_WIDTH - 1;          // 시스템 메시지 창 너비
-    int message_height = 5;                 // 시스템 메시지 창 높이
+    int message_height = 9;                 // 시스템 메시지 창 높이
 
     // 왼쪽 세로 테두리 출력
     for (int row = message_start_row; row < message_start_row + message_height; row++) {
@@ -405,7 +430,7 @@ void command_message() {
     POSITION pos;
     int command_start_row = MAP_HEIGHT + 2;  // 명령창의 시작 행 (상태창 바로 아래)
     int command_width = 58;                 // 명령창 너비 (상태창 너비와 동일)
-    int command_height = 5;                 // 명령창 높이
+    int command_height = 9;                 // 명령창 높이
 
     // 왼쪽 세로 테두리 출력
     for (int row = command_start_row; row < command_start_row + command_height; row++) {
@@ -589,10 +614,10 @@ void sample_obj1_move(void) {
 
 //어떤 지형인지 나오게함.
 void print_terrain(void) {
-
     POSITION pos;
     char terrain = map[0][cursor.current.row][cursor.current.column];
-    char object = map[1][cursor.current.row][cursor.current.column];
+
+    clean_status();  // 상태창 초기화
 
     // 제목 출력
     pos.row = 2;
@@ -600,12 +625,11 @@ void print_terrain(void) {
     gotoxy(pos);
     printf("=== 지형 정보 ===");
 
-    //스페이스바를 클릭한 위치
+    //커서 위치 출력
     pos.row = 4;
     pos.column = MAP_WIDTH + 4;
     gotoxy(pos);
     printf("커서 위치: (%d, %d)", cursor.current.row, cursor.current.column);
-
 
     //지형 정보
     pos.row = 6;
@@ -613,7 +637,24 @@ void print_terrain(void) {
     gotoxy(pos);
     printf("지형: ");
     if (terrain == 'B') {
-        printf("Base");
+        if (cursor.current.row >= ally_base.pos1.row &&
+            cursor.current.row <= ally_base.pos4.row &&
+            cursor.current.column >= ally_base.pos1.column &&
+            cursor.current.column <= ally_base.pos4.column) {
+            printf("Base (아군)");
+            // 아군 베이스인 경우 자원 정보도 표시
+            pos.row = 8;
+            pos.column = MAP_WIDTH + 4;
+            gotoxy(pos);
+            printf("Spice: %d/%d", resource.spice, resource.spice_max);
+            pos.row = 9;
+            pos.column = MAP_WIDTH + 4;
+            gotoxy(pos);
+            printf("Population: %d/%d", resource.population, resource.population_max);
+        }
+        else {
+            printf("Base (적군)");
+        }
     }
     else if (terrain == 'P') {
         printf("장판");
@@ -631,7 +672,7 @@ void print_terrain(void) {
 
 void clean_status(void) {
     POSITION pos;
-    // 상태창 내부 지우기
+    // 상태창 내부 지우기w
     for (int row = 2; row < MAP_HEIGHT; row++) {
         for (int col = MAP_WIDTH + 3; col < MAP_WIDTH + 58; col++) {
             pos.row = row;
@@ -670,4 +711,105 @@ void spawn_spice(POSITION pos) {
     if (rand() % 100 < 15 && map[0][pos.row][pos.column] == ' ') {
         map[0][pos.row][pos.column] = '5';
     }
+}
+
+void process_command(KEY key) {
+    if (!selected_building.is_selected || !selected_building.is_ally) {
+        return;
+    }
+
+    if (key == k_esc) {
+        selected_building.is_selected = false;
+        selected_building.type = ' ';
+        print_command_message("");
+        print_system_message("취소됨                                  ");
+        return;
+    }
+
+    if (selected_building.type == 'B' && key == k_h) {  // k_h 사용
+        if (can_produce_harvester()) {
+            POSITION spawn_pos = { ally_base.pos1.row - 1, ally_base.pos1.column };
+
+            if (map[1][spawn_pos.row][spawn_pos.column] == -1) {
+                map[1][spawn_pos.row][spawn_pos.column] = 'H';
+                resource.spice -= 5;
+                resource.population += 5;
+                print_system_message("A new harvester is ready!");  // 이 부분 수정
+            }
+            else {
+                print_system_message("유닛을 배포할 수 없습니다.");  // 이 부분 수정
+            }
+        }
+        else {
+            if (resource.spice < 5) {
+                print_system_message("스파이스가 충분하지 않습니다!");  // 이 부분 수정
+            }
+            else {
+                print_system_message("인구가 가득");  // 이 부분 수정
+            }
+        }
+        return;
+    }
+
+    if (key != k_none && key != k_undef) {
+        print_command_message("잘못된 명령");  // 이 부분 수정
+    }
+}
+
+// 시스템 메시지를 누적해서 표시하는 전역 변수 추가
+int current_line = 3;
+
+void print_system_message(const char* message) {
+    POSITION pos;
+    pos.column = 2;
+
+    // 메시지 창이 다 찼으면 맨 위로 돌아감
+    if (current_line >= 9) {  // MAP_HEIGHT + 3 + 6(최대라인)
+        current_line = 3;    // 다시 처음으로
+        // 맨 위 라인만 지우기
+        pos.row = MAP_HEIGHT + 3;
+        gotoxy(pos);
+        printf("                                             ");
+    }
+
+    // 새 메시지 출력
+    pos.row = MAP_HEIGHT + current_line;
+    gotoxy(pos);
+    printf("%s", message);
+    current_line++;
+}
+
+void print_command_message(const char* message) {
+    POSITION pos = { MAP_HEIGHT + 3, MAP_WIDTH + 4 };
+    gotoxy(pos);
+    printf("                                                   ");  // 이전 메시지 지우기
+    gotoxy(pos);
+    printf("%s", message);
+}
+void select_building(void) {
+    char terrain = map[0][cursor.current.row][cursor.current.column];
+
+    // 이전 선택 초기화
+    selected_building.is_selected = false;
+    selected_building.type = ' ';
+
+    // 아군 본진 선택
+    if (terrain == 'B' &&
+        cursor.current.row >= ally_base.pos1.row &&
+        cursor.current.row <= ally_base.pos4.row &&
+        cursor.current.column >= ally_base.pos1.column &&
+        cursor.current.column <= ally_base.pos4.column) {
+
+        selected_building.type = 'B';
+        selected_building.position = cursor.current;
+        selected_building.is_selected = true;
+        selected_building.is_ally = true;
+
+        print_command_message("=== 베이스 === H: 하베스터 생산 (Cost: 5) ESC: 취소");
+        print_system_message("베이스 선택됨                          ");
+    }
+}
+
+bool can_produce_harvester(void) {
+    return (resource.spice >= 5 && resource.population + 5 <= resource.population_max);
 }
