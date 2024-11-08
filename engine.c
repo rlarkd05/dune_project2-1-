@@ -52,7 +52,7 @@ RESOURCE resource = {
    .spice = 0,
    .spice_max = 0,
    .population = 0,
-   .population_max = 0
+   .population_max = 5
 };
 
 //오브젝트 샘플 샌드웜 될 예정
@@ -390,7 +390,7 @@ void system_message() {
     POSITION pos;
     int message_start_row = MAP_HEIGHT + 2; // 시스템 메시지 창의 시작 행
     int message_width = MAP_WIDTH - 1;          // 시스템 메시지 창 너비
-    int message_height = 9;                 // 시스템 메시지 창 높이
+    int message_height = 8;                 // 시스템 메시지 창 높이
 
     // 왼쪽 세로 테두리 출력
     for (int row = message_start_row; row < message_start_row + message_height; row++) {
@@ -430,7 +430,7 @@ void command_message() {
     POSITION pos;
     int command_start_row = MAP_HEIGHT + 2;  // 명령창의 시작 행 (상태창 바로 아래)
     int command_width = 58;                 // 명령창 너비 (상태창 너비와 동일)
-    int command_height = 9;                 // 명령창 높이
+    int command_height = 8;                 // 명령창 높이
 
     // 왼쪽 세로 테두리 출력
     for (int row = command_start_row; row < command_start_row + command_height; row++) {
@@ -717,68 +717,78 @@ void process_command(KEY key) {
     if (!selected_building.is_selected || !selected_building.is_ally) {
         return;
     }
-
     if (key == k_esc) {
         selected_building.is_selected = false;
         selected_building.type = ' ';
         print_command_message("");
-        print_system_message("취소됨                                  ");
+        print_system_message("취소됨                                 ");
         return;
     }
-
     if (selected_building.type == 'B' && key == k_h) {  // k_h 사용
-        if (can_produce_harvester()) {
+        if (can_produce_harvester()) {  // 스파이스와 인구수 체크
             POSITION spawn_pos = { ally_base.pos1.row - 1, ally_base.pos1.column };
-
-            if (map[1][spawn_pos.row][spawn_pos.column] == -1) {
+            if (map[1][spawn_pos.row][spawn_pos.column] == -1) {  // 생성 위치 체크
                 map[1][spawn_pos.row][spawn_pos.column] = 'H';
                 resource.spice -= 5;
                 resource.population += 5;
-                print_system_message("A new harvester is ready!");  // 이 부분 수정
+                print_system_message("A new harvester is ready!");
             }
             else {
-                print_system_message("유닛을 배포할 수 없습니다.");  // 이 부분 수정
+                print_system_message("유닛을 배포할 수 없습니다.");
             }
         }
-        else {
-            if (resource.spice < 5) {
-                print_system_message("스파이스가 충분하지 않습니다!");  // 이 부분 수정
-            }
-            else {
-                print_system_message("인구가 가득");  // 이 부분 수정
-            }
+        else if (resource.spice < 5) {  // 스파이스 부족 체크
+            print_system_message("스파이스가 충분하지 않습니다!");
+        }
+        else {  // 인구수 초과 체크
+            print_system_message("인구가 가득");
         }
         return;
-    }
-
-    if (key != k_none && key != k_undef) {
-        print_command_message("잘못된 명령");  // 이 부분 수정
     }
 }
 
 // 시스템 메시지를 누적해서 표시하는 전역 변수 추가
-int current_line = 3;
+
+#define MAX_MESSAGES 5  // 맨 아래 줄 제외하고 5개만 저장
+const char* message_log[MAX_MESSAGES];  // 이전 메시지들을 저장할 배열
+const char* last_message = NULL;        // 이전에 입력된 메시지 저장
 
 void print_system_message(const char* message) {
     POSITION pos;
     pos.column = 2;
 
-    // 메시지 창이 다 찼으면 맨 위로 돌아감
-    if (current_line >= 9) {  // MAP_HEIGHT + 3 + 6(최대라인)
-        current_line = 3;    // 다시 처음으로
-        // 맨 위 라인만 지우기
-        pos.row = MAP_HEIGHT + 3;
+    // 시스템 메시지창 범위 지우기
+    for (int i = 0; i < 6; i++) {  // 6줄 전체 지우기
+        pos.row = MAP_HEIGHT + 3 + i;
         gotoxy(pos);
         printf("                                             ");
     }
 
-    // 새 메시지 출력
-    pos.row = MAP_HEIGHT + current_line;
+    // 이전 메시지가 있으면 배열에 저장
+    if (last_message != NULL) {
+        // 이전 메시지들을 한 칸씩 위로 이동
+        for (int i = 0; i < MAX_MESSAGES - 1; i++) {
+            message_log[i] = message_log[i + 1];
+        }
+        message_log[MAX_MESSAGES - 1] = last_message;
+    }
+
+    // 이전 메시지들 출력 (MAP_HEIGHT + 3부터 시작)
+    for (int i = 0; i < MAX_MESSAGES; i++) {
+        if (message_log[i] != NULL) {
+            pos.row = MAP_HEIGHT + 3 + i;
+            gotoxy(pos);
+            printf("%s", message_log[i]);
+        }
+    }
+
+    // 새 메시지는 항상 맨 아래(MAP_HEIGHT + 8)에 출력
+    pos.row = MAP_HEIGHT + 8;
     gotoxy(pos);
     printf("%s", message);
-    current_line++;
-}
 
+    last_message = message;
+}
 void print_command_message(const char* message) {
     POSITION pos = { MAP_HEIGHT + 3, MAP_WIDTH + 4 };
     gotoxy(pos);
