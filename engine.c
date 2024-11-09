@@ -6,29 +6,29 @@
 #include "io.h"
 #include "display.h"
 
-void init(void);
-void intro(void);
-void Construction(void);
-void Biome(void);
-void unit(void);
-void outro(void);
-void cursor_move(DIRECTION dir);
-void cursor_double_move(DIRECTION dir, int times);
-void sample_obj_move(void);
-void sample_obj1_move(void);
-void StatusWindow(void);
-void system_message(void);
-void command_message(void);
-void print_terrain(void);
-void clean_status(void);
-void select_building(void);
-void process_command(KEY key);
-void print_command_message(const char* message);
-void print_system_message(const char* message);
-bool can_produce_harvester(void);
-POSITION sample_obj_next_position(void);
-POSITION find_nearest_unit(POSITION current_pos);
-void spawn_spice(POSITION pos);
+void init(void); //맵 함수
+void intro(void); //인트로 함수
+void Construction(void); //구조물 함수
+void Biome(void); //지형 함수
+void unit(void); //유닛 함수
+void outro(void); //아웃트로
+void cursor_move(DIRECTION dir); //커서 움직임 함수
+void cursor_double_move(DIRECTION dir, int times); //커서 더블클릭 함수
+void sample_obj_move(void); //샌드웜1 함수
+void sample_obj1_move(void); //샌드웜 2 함수
+void StatusWindow(void); //상태창 함수
+void system_message(void); //시스템 메시지창 함수
+void command_message(void); //명령창 함수
+void print_terrain(void); //상태창에 지형 출력 함수
+void clean_status(void); //esc키를 눌렀을때 상태창 비워주는 함수
+void select_building(void); //건물에 스페이스바를 눌렀을때 명령창에 실행할 명령 뜨게 해주는 함수
+void process_command(KEY key); //키보드 입력에 따른 명령을 처리하는 함수
+void print_command_message(const char* message); //명령창 출력 함수
+void print_system_message(const char* message); // 시스템창 출력함수
+bool can_produce_harvester(void); //하베스터 생산 조건 함수
+POSITION sample_obj_next_position(void); // 샌드웜 다음 움직임 함수
+POSITION find_nearest_unit(POSITION current_pos); // 샌드웜이 근처 유닛 찾는 함수
+void spawn_spice(POSITION pos); //샌드웜임 일정 확률로 스파이스 배출 함수
 
 
 /* ================= control =================== */
@@ -49,8 +49,8 @@ SELECTED_BUILDING selected_building = {
 };
 
 RESOURCE resource = {
-   .spice = 0,
-   .spice_max = 0,
+   .spice = 5,
+   .spice_max = 10,
    .population = 0,
    .population_max = 5
 };
@@ -386,85 +386,58 @@ void StatusWindow() {
 
 //시스템 메시지
 void system_message() {
-    // 메시지 창 높이와 시작 위치 설정
     POSITION pos;
     int message_start_row = MAP_HEIGHT + 2; // 시스템 메시지 창의 시작 행
-    int message_width = MAP_WIDTH - 1;          // 시스템 메시지 창 너비
+    int message_width = MAP_WIDTH - 1;      // 시스템 메시지 창 너비
     int message_height = 8;                 // 시스템 메시지 창 높이
 
-    // 왼쪽 세로 테두리 출력
+    // 테두리와 내부 공백 출력
     for (int row = message_start_row; row < message_start_row + message_height; row++) {
-        pos.row = row;
-        pos.column = 0; // 맨 왼쪽 테두리 위치
-        gotoxy(pos);
-        printf("#");
-    }
+        for (int col = 0; col <= message_width; col++) {
+            pos.row = row;
+            pos.column = col;
+            gotoxy(pos);
 
-    // 상단 가로 테두리 출력
-    for (int col = 0; col < message_width + 1; col++) {
-        pos.row = message_start_row;
-        pos.column = col;
-        gotoxy(pos);
-        printf("#");
-    }
-
-    // 하단 가로 테두리 출력
-    for (int col = 0; col < message_width + 1; col++) {
-        pos.row = message_start_row + message_height - 1;
-        pos.column = col;
-        gotoxy(pos);
-        printf("#");
-    }
-
-    // 오른쪽 세로 테두리 출력
-    for (int row = message_start_row; row < message_start_row + message_height; row++) {
-        pos.row = row;
-        pos.column = message_width;
-        gotoxy(pos);
-        printf("#");
+            // 테두리인 경우 '#' 출력
+            if (row == message_start_row || row == message_start_row + message_height - 1 ||
+                col == 0 || col == message_width) {
+                printf("#");
+            }
+            // 내부인 경우 공백 출력
+            else {
+                printf(" ");
+            }
+        }
     }
 }
 
 //명령창
+
 void command_message() {
     POSITION pos;
     int command_start_row = MAP_HEIGHT + 2;  // 명령창의 시작 행 (상태창 바로 아래)
-    int command_width = 58;                 // 명령창 너비 (상태창 너비와 동일)
-    int command_height = 8;                 // 명령창 높이
+    int command_width = 58;                  // 명령창 너비 (상태창 너비와 동일)
+    int command_height = 8;                  // 명령창 높이
 
-    // 왼쪽 세로 테두리 출력
+    // 테두리와 내부 공백 출력
     for (int row = command_start_row; row < command_start_row + command_height; row++) {
-        pos.row = row;
-        pos.column = MAP_WIDTH + 2;         // 상태창 오른쪽과 일치하게 위치 설정
-        gotoxy(pos);
-        printf("#");
-    }
+        for (int col = MAP_WIDTH + 2; col < MAP_WIDTH + 2 + command_width; col++) {
+            pos.row = row;
+            pos.column = col;
+            gotoxy(pos);
 
-    // 상단 가로 테두리 출력
-    for (int col = MAP_WIDTH + 2; col < MAP_WIDTH + 2 + command_width; col++) {
-        pos.row = command_start_row;
-        pos.column = col;
-        gotoxy(pos);
-        printf("#");
-    }
-
-    // 하단 가로 테두리 출력
-    for (int col = MAP_WIDTH + 2; col < MAP_WIDTH + 2 + command_width; col++) {
-        pos.row = command_start_row + command_height - 1;
-        pos.column = col;
-        gotoxy(pos);
-        printf("#");
-    }
-
-    // 오른쪽 세로 테두리 출력
-    for (int row = command_start_row; row < command_start_row + command_height; row++) {
-        pos.row = row;
-        pos.column = MAP_WIDTH + 2 + command_width - 1;
-        gotoxy(pos);
-        printf("#");
+            // 테두리인 경우 '#' 출력
+            if (row == command_start_row || row == command_start_row + command_height - 1 ||
+                col == MAP_WIDTH + 2 || col == MAP_WIDTH + 2 + command_width - 1) {
+                printf("#");
+            }
+            // 내부인 경우 공백 출력
+            else {
+                printf(" ");
+            }
+        }
     }
 }
-
 // (가능하다면) 지정한 방향으로 커서 이동
 void cursor_move(DIRECTION dir) {
     POSITION curr = cursor.current;
@@ -612,7 +585,7 @@ void sample_obj1_move(void) {
     obj1.next_move_time = sys_clock + obj1.speed;
 }
 
-//어떤 지형인지 나오게함.
+//어떤 지형인지 나오게함
 void print_terrain(void) {
     POSITION pos;
     char terrain = map[0][cursor.current.row][cursor.current.column];
@@ -631,7 +604,7 @@ void print_terrain(void) {
     gotoxy(pos);
     printf("커서 위치: (%d, %d)", cursor.current.row, cursor.current.column);
 
-    //지형 정보
+    //지형 정보(문자열에 커서를 대고 스페이스바를 눌렀을때 상태창에 출력)
     pos.row = 6;
     pos.column = MAP_WIDTH + 4;
     gotoxy(pos);
@@ -642,15 +615,6 @@ void print_terrain(void) {
             cursor.current.column >= ally_base.pos1.column &&
             cursor.current.column <= ally_base.pos4.column) {
             printf("Base (아군)");
-            // 아군 베이스인 경우 자원 정보도 표시
-            pos.row = 8;
-            pos.column = MAP_WIDTH + 4;
-            gotoxy(pos);
-            printf("Spice: %d/%d", resource.spice, resource.spice_max);
-            pos.row = 9;
-            pos.column = MAP_WIDTH + 4;
-            gotoxy(pos);
-            printf("Population: %d/%d", resource.population, resource.population_max);
         }
         else {
             printf("Base (적군)");
@@ -717,33 +681,29 @@ void process_command(KEY key) {
     if (!selected_building.is_selected || !selected_building.is_ally) {
         return;
     }
+
+    //esc키를 눌렀을때
     if (key == k_esc) {
         selected_building.is_selected = false;
         selected_building.type = ' ';
-        print_command_message("");
-        print_system_message("취소됨                                 ");
+        print_command_message("                                                 ");  // 명령창 비우기
+        print_system_message("선택이 취소되었습니다");
+        clean_status();  // 상태창도 비우기
         return;
     }
-    if (selected_building.type == 'B' && key == k_h) {  // k_h 사용
-        if (can_produce_harvester()) {  // 스파이스와 인구수 체크
-            POSITION spawn_pos = { ally_base.pos1.row - 1, ally_base.pos1.column };
-            if (map[1][spawn_pos.row][spawn_pos.column] == -1) {  // 생성 위치 체크
-                map[1][spawn_pos.row][spawn_pos.column] = 'H';
-                resource.spice -= 5;
-                resource.population += 5;
-                print_system_message("A new harvester is ready!");
+
+    if (selected_building.type == 'B') {
+        if (key == k_h) {
+            if (can_produce_harvester()) {
+                map[1][ally_base.pos2.row - 1][ally_base.pos2.column] = 'H';
+                resource.spice -= 5; //스파이스 저장공간 += 5
+                resource.population += 5; //인구공간 += 5
+                print_system_message("하베스터가 생산되었습니다!");
             }
             else {
-                print_system_message("유닛을 배포할 수 없습니다.");
+                print_system_message("스파이스가 부족합니다!");
             }
         }
-        else if (resource.spice < 5) {  // 스파이스 부족 체크
-            print_system_message("스파이스가 충분하지 않습니다!");
-        }
-        else {  // 인구수 초과 체크
-            print_system_message("인구가 가득");
-        }
-        return;
     }
 }
 
@@ -789,21 +749,20 @@ void print_system_message(const char* message) {
 
     last_message = message;
 }
-void print_command_message(const char* message) {
+void print_command_message(const char* message) { //명령창 출력
     POSITION pos = { MAP_HEIGHT + 3, MAP_WIDTH + 4 };
     gotoxy(pos);
     printf("                                                   ");  // 이전 메시지 지우기
     gotoxy(pos);
     printf("%s", message);
 }
-void select_building(void) {
+
+void select_building(void) { //여기에 건물 명령창 작성
     char terrain = map[0][cursor.current.row][cursor.current.column];
 
-    // 이전 선택 초기화
     selected_building.is_selected = false;
     selected_building.type = ' ';
 
-    // 아군 본진 선택
     if (terrain == 'B' &&
         cursor.current.row >= ally_base.pos1.row &&
         cursor.current.row <= ally_base.pos4.row &&
@@ -815,8 +774,8 @@ void select_building(void) {
         selected_building.is_selected = true;
         selected_building.is_ally = true;
 
-        print_command_message("=== 베이스 === H: 하베스터 생산 (Cost: 5) ESC: 취소");
-        print_system_message("베이스 선택됨                          ");
+        print_command_message("=본진= H: 하베스터 생산 (스파이스 5 필요) | ESC: 취소");
+        print_system_message("본진을 선택했습니다");
     }
 }
 
