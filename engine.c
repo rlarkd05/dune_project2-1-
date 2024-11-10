@@ -14,8 +14,8 @@ void unit(void); //유닛 함수
 void outro(void); //아웃트로
 void cursor_move(DIRECTION dir); //커서 움직임 함수
 void cursor_double_move(DIRECTION dir, int times); //커서 더블클릭 함수
-void sample_obj_move(void); //샌드웜1 함수
-void sample_obj1_move(void); //샌드웜 2 함수
+void sandworm_move(void); //샌드웜1 함수
+void sandworm1_move(void); //샌드웜 2 함수
 void StatusWindow(void); //상태창 함수
 void system_message(void); //시스템 메시지창 함수
 void command_message(void); //명령창 함수
@@ -26,7 +26,6 @@ void process_command(KEY key); //키보드 입력에 따른 명령을 처리하는 함수
 void print_command_message(const char* message); //명령창 출력 함수
 void print_system_message(const char* message); // 시스템창 출력함수
 bool can_produce_harvester(void); //하베스터 생산 조건 함수
-POSITION sample_obj_next_position(void); // 샌드웜 다음 움직임 함수
 POSITION find_nearest_unit(POSITION current_pos); // 샌드웜이 근처 유닛 찾는 함수
 void spawn_spice(POSITION pos); //샌드웜임 일정 확률로 스파이스 배출 함수
 
@@ -57,7 +56,7 @@ RESOURCE resource = {
 
 //오브젝트 샘플 샌드웜 될 예정
 OBJECT_SAMPLE obj = {
-   .pos = {5, 5},
+   .pos = {3, 10},
    .dest = {MAP_HEIGHT - 2, MAP_WIDTH - 2},
    .repr = 'W',
    .speed = 600,
@@ -65,8 +64,8 @@ OBJECT_SAMPLE obj = {
 };
 
 OBJECT_SAMPLE1 obj1 = {
-    .pos = {15, 50},
-    .dest = {(MAP_HEIGHT + 2) - MAP_HEIGHT,(MAP_WIDTH + 2) - MAP_HEIGHT},
+    .pos = {16, 50},
+    .dest = {(MAP_HEIGHT + 2) - MAP_HEIGHT, (MAP_WIDTH + 2) - MAP_HEIGHT},
     .repr = 'W',
     .speed = 600,
     .next_move_time = 600
@@ -225,8 +224,8 @@ int main(void) {
         }
 
         // 샘플 오브젝트 동작
-        sample_obj_move();
-        sample_obj1_move();
+        sandworm_move();
+        sandworm1_move();
 
         // 화면 출력
         display(resource, map, cursor);
@@ -340,11 +339,6 @@ void init(void) {
             map[1][i][j] = -1;
         }
     }
-
-    // 샘플 오브젝트 초기화 - Layer 1에 배치
-    obj.pos.row = 1;
-    obj.pos.column = 1;
-    map[1][obj.pos.row][obj.pos.column] = obj.repr;  // 'o' 문자 배치
 }
 
 //상태창
@@ -469,20 +463,14 @@ void cursor_move(DIRECTION dir) {
 }
 
 
-POSITION sample_obj_next_position(void) {
-    // 가장 가까운 유닛의 위치 찾기
+POSITION sandworm_next_position(void) {
     POSITION nearest_unit = find_nearest_unit(obj.pos);
-
-    // 유닛이 없으면 기존 움직임 유지
     if (nearest_unit.row == -1) {
         return obj.pos;
     }
-
-    // 가장 가까운 유닛을 향해 이동
     POSITION diff = psub(nearest_unit, obj.pos);
     DIRECTION dir;
 
-    // 가로축, 세로축 거리를 비교해서 더 먼 쪽 축으로 이동
     if (abs(diff.row) >= abs(diff.column)) {
         dir = (diff.row >= 0) ? d_down : d_up;
     }
@@ -492,39 +480,22 @@ POSITION sample_obj_next_position(void) {
 
     POSITION next_pos = pmove(obj.pos, dir);
 
-    // 이동 가능한 위치인지 확인
     if (1 <= next_pos.row && next_pos.row <= MAP_HEIGHT - 2 &&
         1 <= next_pos.column && next_pos.column <= MAP_WIDTH - 2) {
-
-        // 유닛을 만났는지 확인
-        if (map[1][next_pos.row][next_pos.column] == 'H') {
-            // 유닛 제거
-            map[1][next_pos.row][next_pos.column] = -1;
-            // 5% 확률로 스파이스 생성
-            if (rand() % 100 < 5) {
-                spawn_spice(next_pos);
-            }
+        if (map[0][next_pos.row][next_pos.column] == 'R') {
+            dir = (diff.column >= 0) ? d_right : d_left;
+            return pmove(obj.pos, dir);
         }
-
-        // 2% 확률로 이동하면서 스파이스 생성
-        if (rand() % 100 < 30) {
-            spawn_spice(obj.pos);
-        }
-
         return next_pos;
     }
-
     return obj.pos;
 }
 
-// obj1(두 번째 샌드웜)에 대해서도 동일한 동작 구현
-POSITION sample_obj1_next_position(void) {
+POSITION sandworm1_next_position(void) {
     POSITION nearest_unit = find_nearest_unit(obj1.pos);
-
     if (nearest_unit.row == -1) {
         return obj1.pos;
     }
-
     POSITION diff = psub(nearest_unit, obj1.pos);
     DIRECTION dir;
 
@@ -539,49 +510,58 @@ POSITION sample_obj1_next_position(void) {
 
     if (1 <= next_pos.row && next_pos.row <= MAP_HEIGHT - 2 &&
         1 <= next_pos.column && next_pos.column <= MAP_WIDTH - 2) {
-
-        if (map[1][next_pos.row][next_pos.column] == 'H') {
-            map[1][next_pos.row][next_pos.column] = -1;
-            if (rand() % 100 < 5) {
-                spawn_spice(next_pos);
-            }
+        if (map[0][next_pos.row][next_pos.column] == 'R') {
+            dir = (diff.column >= 0) ? d_right : d_left;
+            return pmove(obj1.pos, dir);
         }
-
-        if (rand() % 100 < 30) {
-            spawn_spice(obj1.pos);
-        }
-
         return next_pos;
     }
-
     return obj1.pos;
 }
 
-void sample_obj_move(void) {
+void sandworm_move(void) {
     if (sys_clock <= obj.next_move_time) {
-        // 아직 시간이 안 됐음
         return;
     }
 
-    // 오브젝트는 layer1(map[1])에 저장
+    POSITION next_pos = sandworm_next_position();
     map[1][obj.pos.row][obj.pos.column] = -1;
-    obj.pos = sample_obj_next_position();
-    map[1][obj.pos.row][obj.pos.column] = obj.repr;
 
+    // 하베스터를 만났는지 체크
+    if (map[1][next_pos.row][next_pos.column] == 'H') {
+        map[1][next_pos.row][next_pos.column] = -1;
+    }
+
+    // 30% 확률로 스파이스 생성
+    if (rand() % 100 < 30) {
+        spawn_spice(obj.pos);
+    }
+
+    obj.pos = next_pos;
+    map[1][obj.pos.row][obj.pos.column] = obj.repr;
     obj.next_move_time = sys_clock + obj.speed;
 }
 
-void sample_obj1_move(void) {
+void sandworm1_move(void) {
     if (sys_clock <= obj1.next_move_time) {
-        // 아직 시간이 안 됐음
         return;
     }
 
-    // 오브젝트는 layer1(map[1])에 저장
+    POSITION next_pos = sandworm1_next_position();
     map[1][obj1.pos.row][obj1.pos.column] = -1;
-    obj1.pos = sample_obj1_next_position();
-    map[1][obj1.pos.row][obj1.pos.column] = obj1.repr;
 
+    // 하베스터를 만났는지 체크
+    if (map[1][next_pos.row][next_pos.column] == 'H') {
+        map[1][next_pos.row][next_pos.column] = -1;
+    }
+
+    // 30% 확률로 스파이스 생성
+    if (rand() % 100 < 30) {
+        spawn_spice(obj1.pos);
+    }
+
+    obj1.pos = next_pos;
+    map[1][obj1.pos.row][obj1.pos.column] = obj1.repr;
     obj1.next_move_time = sys_clock + obj1.speed;
 }
 
