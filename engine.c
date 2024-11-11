@@ -471,6 +471,7 @@ POSITION sandworm_next_position(void) {
     POSITION diff = psub(nearest_unit, obj.pos);
     DIRECTION dir;
 
+    // 기본 방향 선택
     if (abs(diff.row) >= abs(diff.column)) {
         dir = (diff.row >= 0) ? d_down : d_up;
     }
@@ -483,7 +484,13 @@ POSITION sandworm_next_position(void) {
     if (1 <= next_pos.row && next_pos.row <= MAP_HEIGHT - 2 &&
         1 <= next_pos.column && next_pos.column <= MAP_WIDTH - 2) {
         if (map[0][next_pos.row][next_pos.column] == 'R') {
-            dir = (diff.column >= 0) ? d_right : d_left;
+            // 수직 이동 중에 바위를 만나면 좌/우로, 수평 이동 중에 바위를 만나면 상/하로
+            if (dir == d_up || dir == d_down) {
+                dir = (diff.column >= 0) ? d_right : d_left;
+            }
+            else {
+                dir = (diff.row >= 0) ? d_down : d_up;
+            }
             return pmove(obj.pos, dir);
         }
         return next_pos;
@@ -511,7 +518,13 @@ POSITION sandworm1_next_position(void) {
     if (1 <= next_pos.row && next_pos.row <= MAP_HEIGHT - 2 &&
         1 <= next_pos.column && next_pos.column <= MAP_WIDTH - 2) {
         if (map[0][next_pos.row][next_pos.column] == 'R') {
-            dir = (diff.column >= 0) ? d_right : d_left;
+            // 수직 이동 중에 바위를 만나면 좌/우로, 수평 이동 중에 바위를 만나면 상/하로
+            if (dir == d_up || dir == d_down) {
+                dir = (diff.column >= 0) ? d_right : d_left;
+            }
+            else {
+                dir = (diff.row >= 0) ? d_down : d_up;
+            }
             return pmove(obj1.pos, dir);
         }
         return next_pos;
