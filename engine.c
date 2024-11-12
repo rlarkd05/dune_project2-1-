@@ -6,6 +6,7 @@
 #include "io.h"
 #include "display.h"
 
+
 void init(void); //맵 함수
 void intro(void); //인트로 함수
 void Construction(void); //구조물 함수
@@ -20,8 +21,10 @@ void StatusWindow(void); //상태창 함수
 void system_message(void); //시스템 메시지창 함수
 void command_message(void); //명령창 함수
 void print_terrain(void); //상태창에 지형 출력 함수
+void print_unit_info(void); //상태창에 유닛 출력 함수
 void clean_status(void); //esc키를 눌렀을때 상태창 비워주는 함수
 void select_building(void); //건물에 스페이스바를 눌렀을때 명령창에 실행할 명령 뜨게 해주는 함수
+void select_unit(void); // 유닛 선택 함수 선언 추가
 void process_command(KEY key); //키보드 입력에 따른 명령을 처리하는 함수
 void print_command_message(const char* message); //명령창 출력 함수
 void print_system_message(const char* message); // 시스템창 출력함수
@@ -201,6 +204,7 @@ int main(void) {
             case k_space:
                 select_building();
                 print_terrain();
+                print_unit_info();
                 break;
             case k_h:  // 'h', 'H' 대신 k_h 사용
                 if (selected_building.is_selected) {
@@ -465,26 +469,30 @@ void cursor_move(DIRECTION dir) {
 
 POSITION sandworm_next_position(void) {
     POSITION nearest_unit = find_nearest_unit(obj.pos);
-    if (nearest_unit.row == -1) {
-        return obj.pos;
-    }
     POSITION diff = psub(nearest_unit, obj.pos);
     DIRECTION dir;
 
-    // 기본 방향 선택
-    if (abs(diff.row) >= abs(diff.column)) {
-        dir = (diff.row >= 0) ? d_down : d_up;
+    // 유닛이 없으면 랜덤하게 움직임
+    if (nearest_unit.row == obj.pos.row && nearest_unit.column == obj.pos.column) {
+        dir = rand() % 4;  // 0~3 사이의 랜덤한 방향
     }
+    // 유닛이 있으면 유닛 방향으로 이동
     else {
-        dir = (diff.column >= 0) ? d_right : d_left;
+        if (abs(diff.row) >= abs(diff.column)) {
+            dir = (diff.row >= 0) ? d_down : d_up;
+        }
+        else {
+            dir = (diff.column >= 0) ? d_right : d_left;
+        }
     }
 
     POSITION next_pos = pmove(obj.pos, dir);
 
+    // 맵 범위 체크
     if (1 <= next_pos.row && next_pos.row <= MAP_HEIGHT - 2 &&
         1 <= next_pos.column && next_pos.column <= MAP_WIDTH - 2) {
+        // 바위를 만났을 때 방향 전환
         if (map[0][next_pos.row][next_pos.column] == 'R') {
-            // 수직 이동 중에 바위를 만나면 좌/우로, 수평 이동 중에 바위를 만나면 상/하로
             if (dir == d_up || dir == d_down) {
                 dir = (diff.column >= 0) ? d_right : d_left;
             }
@@ -500,25 +508,30 @@ POSITION sandworm_next_position(void) {
 
 POSITION sandworm1_next_position(void) {
     POSITION nearest_unit = find_nearest_unit(obj1.pos);
-    if (nearest_unit.row == -1) {
-        return obj1.pos;
-    }
     POSITION diff = psub(nearest_unit, obj1.pos);
     DIRECTION dir;
 
-    if (abs(diff.row) >= abs(diff.column)) {
-        dir = (diff.row >= 0) ? d_down : d_up;
+    // 유닛이 없으면 랜덤하게 움직임
+    if (nearest_unit.row == obj1.pos.row && nearest_unit.column == obj1.pos.column) {
+        dir = rand() % 4;  // 0~3 사이의 랜덤한 방향
     }
+    // 유닛이 있으면 유닛 방향으로 이동
     else {
-        dir = (diff.column >= 0) ? d_right : d_left;
+        if (abs(diff.row) >= abs(diff.column)) {
+            dir = (diff.row >= 0) ? d_down : d_up;
+        }
+        else {
+            dir = (diff.column >= 0) ? d_right : d_left;
+        }
     }
 
     POSITION next_pos = pmove(obj1.pos, dir);
 
+    // 맵 범위 체크
     if (1 <= next_pos.row && next_pos.row <= MAP_HEIGHT - 2 &&
         1 <= next_pos.column && next_pos.column <= MAP_WIDTH - 2) {
+        // 바위를 만났을 때 방향 전환
         if (map[0][next_pos.row][next_pos.column] == 'R') {
-            // 수직 이동 중에 바위를 만나면 좌/우로, 수평 이동 중에 바위를 만나면 상/하로
             if (dir == d_up || dir == d_down) {
                 dir = (diff.column >= 0) ? d_right : d_left;
             }
@@ -597,7 +610,7 @@ void print_terrain(void) {
     gotoxy(pos);
     printf("커서 위치: (%d, %d)", cursor.current.row, cursor.current.column);
 
-    //지형 정보(문자열에 커서를 대고 스페이스바를 눌렀을때 상태창에 출력)
+    //지형 정보 출력
     pos.row = 6;
     pos.column = MAP_WIDTH + 4;
     gotoxy(pos);
@@ -625,6 +638,115 @@ void print_terrain(void) {
     else {
         printf("사막 지형");
     }
+
+    // 지형 특징 출력
+    pos.row = 8;
+    pos.column = MAP_WIDTH + 4;
+    gotoxy(pos);
+    printf("특징: ");
+    if (terrain == 'B') {
+        printf("유닛 생산 건물");
+    }
+    else if (terrain == 'P') {
+        printf("장판 위에 건설 가능");
+    }
+    else if (terrain == 'R') {
+        printf("샌드웜이 통과할 수 없음");
+    }
+    else if (terrain == '5') {
+        printf("수집 가능한 자원");
+    }
+    else {
+        printf("기본 지형, 건물을 지을 수 없음");
+    }
+}
+
+void select_unit(void) {
+    char unit = map[1][cursor.current.row][cursor.current.column];
+
+    selected_building.is_selected = false;
+    selected_building.type = ' ';
+
+    // 하베스터 선택
+    if (unit == 'H') {
+        selected_building.is_selected = true;
+
+        if (cursor.current.row == Harverster.pos1.row &&
+            cursor.current.column == Harverster.pos1.column) {
+            clean_status();
+            print_unit_info();
+            print_system_message("아군 하베스터를 선택했습니다");
+        }
+        else if (cursor.current.row == Haconen.pos2.row &&
+            cursor.current.column == Haconen.pos2.column) {
+            clean_status();
+            print_unit_info();
+            print_system_message("적군 하베스터를 선택했습니다");
+        }
+    }
+    // 샌드웜 선택
+    else if (unit == 'W') {
+        selected_building.is_selected = true;
+        clean_status();
+        print_unit_info();
+        print_system_message("샌드웜을 선택했습니다");
+    }
+}
+void print_unit_info(void) {
+    POSITION pos;
+    char unit = map[1][cursor.current.row][cursor.current.column];
+
+    if (unit != -1) {
+        // 제목 출력
+        pos.row = 2;  // 지형 정보와 같은 위치에서 시작
+        pos.column = MAP_WIDTH + 4;
+        gotoxy(pos);
+        printf("=== 유닛 정보 ===");
+
+        // 현재 위치 출력
+        pos.row = 4;
+        pos.column = MAP_WIDTH + 4;
+        gotoxy(pos);
+        printf("커서 위치: (%d, %d)", cursor.current.row, cursor.current.column);
+
+        // 유닛 종류 출력
+        pos.row = 6;
+        pos.column = MAP_WIDTH + 4;
+        gotoxy(pos);
+        printf("유닛: ");
+
+        if (unit == 'H') {
+            // 아군 하베스터 정보
+            if (cursor.current.row == Harverster.pos1.row &&
+                cursor.current.column == Harverster.pos1.column) {
+                printf("하베스터 (아군)");
+
+                pos.row = 8;
+                pos.column = MAP_WIDTH + 4;
+                gotoxy(pos);
+                printf("상태: 정상                                       ");
+
+            }
+            // 적군 하코넨 정보
+            else if (cursor.current.row == Haconen.pos2.row &&
+                cursor.current.column == Haconen.pos2.column) {
+                printf("하베스터 (적군)");
+
+                pos.row = 8;
+                pos.column = MAP_WIDTH + 4;
+                gotoxy(pos);
+                printf("소속: 하코넨                                    ");
+            }
+        }
+        else if (unit == 'W') {
+            printf("샌드웜   ");
+
+            pos.row = 8;
+            pos.column = MAP_WIDTH + 4;
+            gotoxy(pos);
+            printf("특성: 유닛 추적 및 공격                        ");
+        }
+    }
 }
 
 void clean_status(void) {
@@ -642,26 +764,33 @@ void clean_status(void) {
 
 // 가장 가까운 유닛을 찾는 함수
 POSITION find_nearest_unit(POSITION current_pos) {
-    POSITION nearest = { 0, 0 }; //초기값 0,0
-    int min_distance = MAP_WIDTH * MAP_HEIGHT; // 최대 거리로 초기화
+    POSITION nearest = { -1, -1 };  // 초기값을 -1, -1로 변경
+    int min_distance = MAP_WIDTH * MAP_HEIGHT;
+    bool found_unit = false;  // 유닛 발견 여부 체크
 
     // 모든 맵을 순회하면서 유닛 찾기
     for (int i = 0; i < MAP_HEIGHT; i++) {
         for (int j = 0; j < MAP_WIDTH; j++) {
-            // 'H'는 하베스터나 하코넨 유닛을 나타냄 테스트를 하코넨과 하베스터로 진행했음
             if (map[1][i][j] == 'H') {
-                POSITION unit_pos = { i, j }; //현재 유닛 위치
-                int distance = abs(current_pos.row - i) + abs(current_pos.column - j); //abs(제곱)(현재 샌드웜 위치 가로줄 - i) + (현재 샌드웜 위치 세로줄 - j) // 두 점 사이의 거리 공식 사용
-                if (distance < min_distance && distance > 0) { // 자기 자신 제외
-                    min_distance = distance; // 조건이 만족되면 min_distance를 distance로 갱신하고 nearest를 unit_pos로 설정한다. (거리저장)
-                    nearest = unit_pos;//이렇게 하면 점점 더 가까운 유닛을 찾으면서 nearest에 가장 가까운 유닛의 위치를 기록하게 됩니다. (위치 저장)
+                POSITION unit_pos = { i, j };
+                int distance = abs(current_pos.row - i) + abs(current_pos.column - j);
+                if (distance < min_distance && distance > 0) {
+                    min_distance = distance;
+                    nearest = unit_pos;
+                    found_unit = true;
                 }
             }
         }
     }
+
+    // 유닛을 못 찾았을 경우 랜덤한 목적지 반환
+    if (!found_unit) {
+        nearest.row = 1 + (rand() % (MAP_HEIGHT - 2));
+        nearest.column = 1 + (rand() % (MAP_WIDTH - 2));
+    }
+
     return nearest;
 }
-
 // 샌드웜이 스파이스를 생성하는 함수
 void spawn_spice(POSITION pos) {
     // 15% 확률로 스파이스 생성
@@ -750,25 +879,52 @@ void print_command_message(const char* message) { //명령창 출력
     printf("%s", message);
 }
 
-void select_building(void) { //여기에 건물 명령창 작성
+void select_building(void) {
     char terrain = map[0][cursor.current.row][cursor.current.column];
+    char unit = map[1][cursor.current.row][cursor.current.column];
 
     selected_building.is_selected = false;
     selected_building.type = ' ';
 
+    // 유닛이 있는 경우 유닛 선택 함수 호출
+    if (unit != -1) {
+        select_unit();
+        return;
+    }
+
+    clean_status();
+    print_terrain();
+
+    // 건물 선택 및 명령 처리
     if (terrain == 'B' &&
         cursor.current.row >= ally_base.pos1.row &&
         cursor.current.row <= ally_base.pos4.row &&
         cursor.current.column >= ally_base.pos1.column &&
         cursor.current.column <= ally_base.pos4.column) {
-
+        //본진에 대고 스페이스바 눌렀는지 체크
         selected_building.type = 'B';
         selected_building.position = cursor.current;
         selected_building.is_selected = true;
         selected_building.is_ally = true;
 
-        print_command_message("=본진= H: 하베스터 생산 (스파이스 5 필요) | ESC: 취소");
-        print_system_message("본진을 선택했습니다");
+        print_command_message("=본진= H:하베스터 생산 (스파이스 5 필요) | ESC:취소");
+        print_system_message("아군 본진을 선택했습니다");
+    }
+    // 나머지 지형/건물 선택
+    else if (terrain == 'B') {
+        print_system_message("적군 본진을 선택했습니다");
+    }
+    else if (terrain == 'P') {
+        print_system_message("장판을 선택했습니다");
+    }
+    else if (terrain == 'R') {
+        print_system_message("바위를 선택했습니다");
+    }
+    else if (terrain == '5') {
+        print_system_message("스파이스를 선택했습니다");
+    }
+    else {
+        print_system_message("사막을 선택했습니다");
     }
 }
 
