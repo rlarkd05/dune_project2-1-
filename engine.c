@@ -31,6 +31,8 @@ void print_system_message(const char* message); // 시스템창 출력함수
 bool can_produce_harvester(void); //하베스터 생산 조건 함수
 POSITION find_nearest_unit(POSITION current_pos); // 샌드웜이 근처 유닛 찾는 함수
 void spawn_spice(POSITION pos); //샌드웜임 일정 확률로 스파이스 배출 함수
+bool can_build_here(void);
+void build_structure(void);
 
 
 /* ================= control =================== */
@@ -176,6 +178,60 @@ UNIT Haconen = {
     .layer = 1
 };
 
+BUILDING_STATE building_state = {
+    .is_building_mode = false,
+    .building_type = ' ',    // 빈 문자로 초기화
+    .cursor_size = 1
+};
+
+// 건물 정보 배열 정의
+const BUILDING_INFO buildings[] = {
+    {
+        .type = BD_PLATE,
+        .name = "장판",
+        .shortcut = "P: Plate",
+        .cost = 100,
+        .durability = 0,
+        .effect = "건물 짓기 전에 깔기",
+        .production = "없음"
+    },
+    {
+        .type = BD_DORM,
+        .name = "숙소",
+        .shortcut = "D: Dormitory",
+        .cost = 210,
+        .durability = 0,
+        .effect = "인구 최대치 증가(10)",
+        .production = "없음"
+    },
+    {
+        .type = BD_GARAGE,
+        .name = "창고",
+        .shortcut = "G: Garage",
+        .cost = 410,
+        .durability = 0,
+        .effect = "스파이스 보관 최대치 증가(10)",
+        .production = "없음"
+    },
+    {
+        .type = BD_BARRACKS,
+        .name = "아트레이디스 병영",
+        .shortcut = "B: Barracks",
+        .cost = 420,
+        .durability = 0,
+        .effect = "보병 생산",
+        .production = "보병(S: Soldier)"
+    },
+    {
+        .type = BD_SHELTER,
+        .name = "은신처",
+        .shortcut = "S: Shelter",
+        .cost = 530,
+        .durability = 0,
+        .effect = "특수유닛 생산",
+        .production = "프레멘(F: Fremen)"
+    }
+};
 
 /* ================= main() =================== */
 int main(void) {
@@ -190,6 +246,7 @@ int main(void) {
     system_message();
     command_message();
     print_terrain();
+    print_command_message("B: 건설");
     display(resource, map, cursor);
 
     while (1) {
@@ -201,18 +258,34 @@ int main(void) {
         }
         else {
             switch (key) {
-            case k_space:
-                select_building();
-                print_terrain();
-                print_unit_info();
+            case k_b:  // B키 처리
+                process_command(key);
                 break;
-            case k_h:  // 'h', 'H' 대신 k_h 사용
+            case k_p:  // 장판
+            case k_d:  // 숙소
+            case k_g:  // 창고
+            case k_s:  // 은신처
+                if (building_state.is_building_mode) {
+                    process_command(key);
+                }
+                break;
+            case k_space:
+                if (building_state.is_building_mode) {
+                    process_command(key);
+                }
+                else {
+                    select_building();
+                    print_terrain();
+                    print_unit_info();
+                }
+                break;
+            case k_h:
                 if (selected_building.is_selected) {
                     process_command(key);
                 }
                 break;
             case k_esc:
-                if (selected_building.is_selected) {
+                if (selected_building.is_selected || building_state.is_building_mode) {
                     process_command(key);
                 }
                 break;
@@ -227,11 +300,8 @@ int main(void) {
             }
         }
 
-        // 샘플 오브젝트 동작
         sandworm_move();
         sandworm1_move();
-
-        // 화면 출력
         display(resource, map, cursor);
         Sleep(TICK);
         sys_clock += 10;
@@ -441,23 +511,20 @@ void cursor_move(DIRECTION dir) {
     POSITION curr = cursor.current;
     POSITION new_pos = pmove(curr, dir);
 
-    // 현재 시간에서 연속 입력 여부를 확인
     int time_diff = sys_clock - last_key_time;
-    last_key_time = sys_clock; // Update last key time
+    last_key_time = sys_clock;
 
-    // 연속 입력 시 이동 거리 결정
-    int move_distance = (time_diff < DOUBLE_PRESS_INTERVAL) ? 2 : 1; // 2칸 이동 또는 1칸 이동
+    int move_distance = (time_diff < DOUBLE_PRESS_INTERVAL) ? 2 : 1;
 
     for (int i = 0; i < move_distance; i++) {
-        // validation check (맵의 유효한 영역 내에서만 이동)
-        if (1 <= new_pos.row && new_pos.row <= MAP_HEIGHT - 2 &&
-            1 <= new_pos.column && new_pos.column <= MAP_WIDTH - 2) {
+        // building_state의 cursor_size를 사용한 경계 체크
+        int max_row = MAP_HEIGHT - building_state.cursor_size;
+        int max_col = MAP_WIDTH - building_state.cursor_size;
 
-            // 현재 위치를 이전 위치로 업데이트
-            cursor.previous = cursor.current; //이전의 위치 갱신
-            cursor.current = new_pos; // 현재 위치 업데잍느
-
-            // 새로운 위치로 이동
+        if (1 <= new_pos.row && new_pos.row <= max_row &&
+            1 <= new_pos.column && new_pos.column <= max_col) {
+            cursor.previous = cursor.current;
+            cursor.current = new_pos;
             new_pos = pmove(new_pos, dir);
         }
         else {
@@ -751,7 +818,7 @@ void print_unit_info(void) {
 
 void clean_status(void) {
     POSITION pos;
-    // 상태창 내부 지우기w
+    // 상태창 내부 지우기
     for (int row = 2; row < MAP_HEIGHT; row++) {
         for (int col = MAP_WIDTH + 3; col < MAP_WIDTH + 58; col++) {
             pos.row = row;
@@ -799,36 +866,94 @@ void spawn_spice(POSITION pos) {
     }
 }
 
+// 건설 메뉴 처리 함수 수정
 void process_command(KEY key) {
-    if (!selected_building.is_selected || !selected_building.is_ally) {
-        return;
+    if (!selected_building.is_selected && !building_state.is_building_mode) {
+        if (key == k_b) {
+            building_state.is_building_mode = true;
+            building_state.cursor_size = 1;  // 초기 상태는 1x1
+            print_command_message("P:장판 D:숙소 G:창고 B:병영 S:은신처 ESC:취소");
+        }
     }
+    else if (building_state.is_building_mode) {
+        switch (key) {
+        case k_p:
+            building_state.building_type = BD_PLATE;
+            building_state.cursor_size = 2;  // 2x2로 변경
+            print_command_message("장판 건설 - [Space]건설 [ESC]취소 (비용: 2 내구도: 10)");
+            break;
 
-    //esc키를 눌렀을때
-    if (key == k_esc) {
-        selected_building.is_selected = false;
-        selected_building.type = ' ';
-        print_command_message("                                                 ");  // 명령창 비우기
-        print_system_message("선택이 취소되었습니다");
-        clean_status();  // 상태창도 비우기
-        return;
-    }
+        case k_d:
+            building_state.building_type = BD_DORM;
+            building_state.cursor_size = 2;
+            print_command_message("숙소 건설 - [Space]건설 [ESC]취소 (비용: 3 내구도: 15)");
+            break;
 
-    if (selected_building.type == 'B') {
-        if (key == k_h) {
-            if (can_produce_harvester()) {
-                map[1][ally_base.pos2.row - 1][ally_base.pos2.column] = 'H';
-                resource.spice -= 5; //스파이스 저장공간 += 5
-                resource.population += 5; //인구공간 += 5
-                print_system_message("하베스터가 생산되었습니다!");
+        case k_g:
+            building_state.building_type = BD_GARAGE;
+            building_state.cursor_size = 2;
+            print_command_message("창고 건설 - [Space]건설 [ESC]취소 (비용: 4 내구도: 15)");
+            break;
+
+        case k_b:
+            building_state.building_type = BD_BARRACKS;
+            building_state.cursor_size = 2;
+            print_command_message("병영 건설 - [Space]건설 [ESC]취소 (비용: 5 내구도: 20)");
+            break;
+
+        case k_s:
+            building_state.building_type = BD_SHELTER;
+            building_state.cursor_size = 2;
+            print_command_message("은신처 건설 - [Space]건설 [ESC]취소 (비용: 6 내구도: 25)");
+            break;
+
+        case k_space:
+            if (building_state.building_type != ' ') {
+                if (can_build_here()) {
+                    build_structure();
+                    building_state.is_building_mode = false;
+                    building_state.building_type = ' ';
+                    building_state.cursor_size = 1;  // 건설 완료 후 1x1로 복귀
+                    print_command_message("B: 건설                                         ");
+                }
             }
-            else {
+            break;
+
+        case k_esc:
+            building_state.is_building_mode = false;
+            building_state.building_type = ' ';
+            building_state.cursor_size = 1;  // ESC로 취소 시 1x1로 복귀
+            print_command_message("B: 건설                                               ");
+            break;
+        }
+    }
+    else if (selected_building.type == 'B' && selected_building.is_ally) {
+        print_command_message("H:하베스터 생산 | ESC:취소");
+
+        switch (key) {
+        case k_h:
+            if (resource.spice < 5) {
                 print_system_message("스파이스가 부족합니다!");
             }
+            else if (resource.population + 5 > resource.population_max) {
+                print_system_message("인구 수 제한을 초과했습니다!");
+            }
+            else {
+                map[1][ally_base.pos2.row - 1][ally_base.pos2.column] = 'H';
+                resource.spice -= 5;
+                resource.population += 5;
+                print_system_message("하베스터가 생산되었습니다!");
+            }
+            break;
+
+        case k_esc:
+            selected_building.is_selected = false;
+            selected_building.type = ' ';
+            print_command_message("B: 건설");
+            break;
         }
     }
 }
-
 // 시스템 메시지를 누적해서 표시하는 전역 변수 추가
 
 #define MAX_MESSAGES 5  // 맨 아래 줄 제외하고 5개만 저장
@@ -907,7 +1032,7 @@ void select_building(void) {
         selected_building.is_selected = true;
         selected_building.is_ally = true;
 
-        print_command_message("=본진= H:하베스터 생산 (스파이스 5 필요) | ESC:취소");
+        print_command_message("=본진= H:하베스터 생산 | ESC:취소");
         print_system_message("아군 본진을 선택했습니다");
     }
     // 나머지 지형/건물 선택
@@ -931,3 +1056,87 @@ void select_building(void) {
 bool can_produce_harvester(void) {
     return (resource.spice >= 5 && resource.population + 5 <= resource.population_max);
 }
+
+bool can_build_here(void) {
+    POSITION pos = cursor.current;
+
+    // 맵 경계 체크
+    if (pos.row < 1 || pos.row + building_state.cursor_size > MAP_HEIGHT - 1 ||
+        pos.column < 1 || pos.column + building_state.cursor_size > MAP_WIDTH - 1) {
+        print_system_message("맵 경계에 건설할 수 없습니다");
+        return false;
+    }
+
+    // 장판이 아닌 건물 건설 시 장판 필요
+    if (building_state.building_type != BD_PLATE) {
+        for (int i = 0; i < building_state.cursor_size; i++) {
+            for (int j = 0; j < building_state.cursor_size; j++) {
+                if (map[0][pos.row + i][pos.column + j] != 'P') {
+                    print_system_message("장판 위에만 건설할 수 있습니다");
+                    return false;
+                }
+            }
+        }
+    }
+
+    // 다른 건물과의 충돌 체크
+    for (int i = 0; i < building_state.cursor_size; i++) {
+        for (int j = 0; j < building_state.cursor_size; j++) {
+            char terrain = map[0][pos.row + i][pos.column + j];
+            if (building_state.building_type != BD_PLATE && terrain != 'P' && terrain != ' ') {
+                print_system_message("다른 건물이 있어 건설할 수 없습니다");
+                return false;
+            }
+        }
+    }
+
+    // 건설 비용 확인
+    for (int i = 0; i < sizeof(buildings) / sizeof(buildings[0]); i++) {
+        if (building_state.building_type == buildings[i].type) {
+            if (resource.spice < buildings[i].cost) {
+                print_system_message("스파이스가 부족합니다");
+                return false;
+            }
+            break;
+        }
+    }
+
+    return true;
+}
+
+void build_structure(void) {
+    POSITION pos = cursor.current;
+    char type = building_state.building_type;
+    int cost = 0;
+
+    // 건설 비용 찾기
+    for (int i = 0; i < sizeof(buildings) / sizeof(buildings[0]); i++) {
+        if (type == buildings[i].type) {
+            cost = buildings[i].cost;
+            break;
+        }
+    }
+
+    // 2x2 영역에 건물 건설
+    for (int i = 0; i < 2; i++) {
+        for (int j = 0; j < 2; j++) {
+            map[0][pos.row + i][pos.column + j] = type;
+        }
+    }
+
+    // 자원 소비
+    resource.spice -= cost;
+
+    // 건물 효과 적용
+    switch (type) {
+    case BD_DORM:
+        resource.population_max += 10;
+        break;
+    case BD_GARAGE:
+        resource.spice_max += 10;
+        break;
+    }
+
+    print_system_message("건설 완료!");
+}
+

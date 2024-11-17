@@ -38,7 +38,12 @@ typedef enum {
 	k_undef, // 정의되지 않은 키 입력   
 	k_space, // 스페이스바
 	k_esc, // esc키
-	k_h //h키
+	k_h,
+	k_b, // b키
+	k_p, //p키
+	k_d,
+	k_g,
+	k_s,
 } KEY;
 
 /* ================= 구조체 정의 =================== */
@@ -129,4 +134,31 @@ typedef struct {
 	bool is_ally;          // 아군 건물 여부
 } SELECTED_BUILDING;
 
+typedef enum {
+	BD_PLATE = 'P',    // 장판
+	BD_DORM = 'D',     // 숙소
+	BD_GARAGE = 'G',   // 창고
+	BD_BARRACKS = 'B', // 병영
+	BD_SHELTER = 'S'   // 은신처
+} BUILDING_TYPE;
+
+// 건물 정보 구조체 업데이트
+typedef struct {
+	BUILDING_TYPE type;     // 건물 타입
+	const char* name;       // 건물 이름
+	const char* shortcut;   // 단축키 설명
+	int cost;              // 건설 비용
+	int durability;        // 내구도
+	const char* effect;     // 효과 설명
+	const char* production; // 생산 유닛 정보
+} BUILDING_INFO;
+
+// 건설 상태 구조체
+typedef struct {
+	bool is_building_mode;  // 건설 모드 여부
+	char building_type;     // 선택된 건물 타입
+	int cursor_size;        // 커서 크기 (1x1 or 2x2)
+} BUILDING_STATE;
+
+extern BUILDING_STATE building_state;
 #endif

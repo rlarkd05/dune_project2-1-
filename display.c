@@ -106,25 +106,45 @@ void display_map(char map[N_LAYER][MAP_HEIGHT][MAP_WIDTH]) {
     }
 }
 void display_cursor(CURSOR cursor) {
-    POSITION prev = cursor.previous;
-    POSITION curr = cursor.current;
+    // 이전 커서 위치 복원
+    if (building_state.cursor_size == 2) {
+        // 2x2 크기의 이전 커서 위치 복원
+        for (int i = 0; i < 2; i++) {
+            for (int j = 0; j < 2; j++) {
+                POSITION prev = { cursor.previous.row + i, cursor.previous.column + j };
+                char prev_char = backbuf[prev.row][prev.column];
+                int prev_color = get_color_at(prev);
+                printc(padd(map_pos, prev), prev_char, prev_color);
+                frontbuf[prev.row][prev.column] = prev_char;
+            }
+        }
+    }
+    else {
+        // 1x1 크기의 이전 커서 위치 복원
+        POSITION prev = cursor.previous;
+        char prev_char = backbuf[prev.row][prev.column];
+        int prev_color = get_color_at(prev);
+        printc(padd(map_pos, prev), prev_char, prev_color);
+        frontbuf[prev.row][prev.column] = prev_char;
+    }
 
-    // 이전 위치의 문자를 backbuf에서 가져옴
-    char prev_char = backbuf[prev.row][prev.column];
-    int prev_color = get_color_at(prev); // 이전 위치의 색상
-
-    // 현재 위치의 문자를 backbuf에서 가져옴
-    char curr_char = backbuf[curr.row][curr.column];
-
-    // 이전 위치를 원래 문자와 색상으로 복원옴
-    printc(padd(map_pos, prev), prev_char, prev_color); // 이전 위치 복원
-
-    // 현재 위치에 커서 표시 커서 색상 출력
-    printc(padd(map_pos, curr), curr_char, COLOR_CURSOR); // 현재 위치에 커서 출력
-
-    // frontbuf 업데이트
-    frontbuf[prev.row][prev.column] = prev_char; // 이전 위치의 frontbuf 업데이트
-    frontbuf[curr.row][curr.column] = COLOR_CURSOR; // 현재 위치의 frontbuf 업데이트
+    // 현재 커서 위치 표시
+    if (building_state.cursor_size == 2) {
+        // 2x2 크기의 현재 커서 표시
+        for (int i = 0; i < 2; i++) {
+            for (int j = 0; j < 2; j++) {
+                POSITION curr = { cursor.current.row + i, cursor.current.column + j };
+                char curr_char = backbuf[curr.row][curr.column];
+                printc(padd(map_pos, curr), curr_char, COLOR_CURSOR);
+                frontbuf[curr.row][curr.column] = COLOR_CURSOR;
+            }
+        }
+    }
+    else {
+        // 1x1 크기의 현재 커서 표시
+        POSITION curr = cursor.current;
+        char curr_char = backbuf[curr.row][curr.column];
+        printc(padd(map_pos, curr), curr_char, COLOR_CURSOR);
+        frontbuf[curr.row][curr.column] = COLOR_CURSOR;
+    }
 }
-
-
