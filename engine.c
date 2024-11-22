@@ -41,7 +41,10 @@ CURSOR cursor = { { 1, 1 }, {1, 1} };
 int last_key_time = 0;
 #define DOUBLE_PRESS_INTERVAL 200
 #define MAX_MSG_LINES 6  
-
+#define MAX_UNITS 10  // population_max의 최대값
+// 전역 변수 추가 (기존 전역변수 선언 부분에 추가)
+UNIT units[10];  // population_max의 최대값(10)만큼 배열 크기 설정
+int unit_count = 0;
 /* ================= game data =================== */
 char map[N_LAYER][MAP_HEIGHT][MAP_WIDTH] = { 0 };
 
@@ -53,8 +56,8 @@ SELECTED_BUILDING selected_building = {
 };
 
 RESOURCE resource = {
-   .spice = 5,
-   .spice_max = 10,
+   .spice = 50,
+   .spice_max = 50,
    .population = 0,
    .population_max = 5
 };
@@ -88,10 +91,10 @@ OBJECT_BUILDING ally_base = {
 
 //적베이스
 OBJECT_BUILDING enemy_base = {
-   .pos1 = {1, 58},
-   .pos2 = {1, 57},
-   .pos3 = {2, 58},
-   .pos4 = {2, 57},
+   .pos1 = {1, 57},
+   .pos2 = {1, 56},
+   .pos3 = {2, 57},
+   .pos4 = {2, 56},
    .repr = 'B',
    .layer = 0
 };
@@ -108,10 +111,10 @@ OBJECT_BUILDING ally_pad = {
 
 //적군 장판
 OBJECT_BUILDING enemy_pad = {
-   .pos1 = {2, 55},
-   .pos2 = {2, 56},
-   .pos3 = {1, 55},
-   .pos4 = {1, 56},
+   .pos1 = {1, 55},
+   .pos2 = {1, 56},
+   .pos3 = {0, 55},
+   .pos4 = {0, 56},
    .repr = 'P',  // E는 적군 장판을 나타내는 문자
    .layer = 0
 };
@@ -184,6 +187,48 @@ BUILDING_STATE building_state = {
     .cursor_size = 1
 };
 
+const UnitInfo UNIT_INFO[] = {
+    [UNIT_TYPE_HARVESTER] = {
+        .type = UNIT_TYPE_HARVESTER,
+        .name = "하베스터",
+        .symbol = 'H',
+        .can_be_ally = true,
+        .can_be_enemy = true,
+        .cost = 5
+    },
+    [UNIT_TYPE_FREMEN] = {
+        .type = UNIT_TYPE_FREMEN,
+        .name = "프레멘",
+        .symbol = 'F',
+        .can_be_ally = true,
+        .can_be_enemy = false,
+        .cost = 6
+    },
+    [UNIT_TYPE_SOLDIER] = {
+        .type = UNIT_TYPE_SOLDIER,
+        .name = "보병",
+        .symbol = 'S',
+        .can_be_ally = true,
+        .can_be_enemy = false,
+        .cost = 4
+    },
+    [UNIT_TYPE_TANK] = {
+        .type = UNIT_TYPE_TANK,
+        .name = "중전차",
+        .symbol = 'T',
+        .can_be_ally = false,
+        .can_be_enemy = true,
+        .cost = 7
+    },
+    [UNIT_TYPE_SANDWORM] = {
+        .type = UNIT_TYPE_SANDWORM,
+        .name = "샌드웜",
+        .symbol = 'W',
+        .can_be_ally = false,
+        .can_be_enemy = false,
+        .cost = 0
+    }
+};
 // 건물 정보 배열 정의
 const BUILDING_INFO buildings[] = {
     {
@@ -326,38 +371,45 @@ void cursor_double_move(DIRECTION dir, int times) {
 }
 
 void Construction(void) {
-    // 아군 베이스
-    map[ally_base.layer][ally_base.pos1.row][ally_base.pos1.column] = ally_base.repr;
-    map[ally_base.layer][ally_base.pos2.row][ally_base.pos2.column] = ally_base.repr;
-    map[ally_base.layer][ally_base.pos3.row][ally_base.pos3.column] = ally_base.repr;
-    map[ally_base.layer][ally_base.pos4.row][ally_base.pos4.column] = ally_base.repr;
+    // layer 0에 있는 맵 데이터 초기화 - 테두리 제외하고 초기화
+    for (int i = 1; i < MAP_HEIGHT - 1; i++) {
+        for (int j = 1; j < MAP_WIDTH - 1; j++) {
+            map[0][i][j] = ' ';  // 테두리를 제외한 내부만 공백으로 설정
+        }
+    }
 
+    // 아군 베이스
+    for (int i = 0; i < 2; i++) {
+        for (int j = 0; j < 2; j++) {
+            map[0][ally_base.pos1.row + i][ally_base.pos1.column + j] = ally_base.repr;
+        }
+    }
     // 적군 베이스
-    map[enemy_base.layer][enemy_base.pos1.row][enemy_base.pos1.column] = enemy_base.repr;
-    map[enemy_base.layer][enemy_base.pos2.row][enemy_base.pos2.column] = enemy_base.repr;
-    map[enemy_base.layer][enemy_base.pos3.row][enemy_base.pos3.column] = enemy_base.repr;
-    map[enemy_base.layer][enemy_base.pos4.row][enemy_base.pos4.column] = enemy_base.repr;
+    for (int i = 0; i < 2; i++) {
+        for (int j = 0; j < 2; j++) {
+            map[0][enemy_base.pos1.row + i][enemy_base.pos1.column + j] = enemy_base.repr;
+        }
+    }
 
     // 아군 장판
-    map[ally_pad.layer][ally_pad.pos1.row][ally_pad.pos1.column] = ally_pad.repr;
-    map[ally_pad.layer][ally_pad.pos2.row][ally_pad.pos2.column] = ally_pad.repr;
-    map[ally_pad.layer][ally_pad.pos3.row][ally_pad.pos3.column] = ally_pad.repr;
-    map[ally_pad.layer][ally_pad.pos4.row][ally_pad.pos4.column] = ally_pad.repr;
+    for (int i = 0; i < 2; i++) {
+        for (int j = 0; j < 2; j++) {
+            map[0][ally_pad.pos1.row + i][ally_pad.pos1.column + j] = ally_pad.repr;
+        }
+    }
 
-    //적군 장판
-    map[enemy_pad.layer][enemy_pad.pos1.row][enemy_pad.pos1.column] = enemy_pad.repr;
-    map[enemy_pad.layer][enemy_pad.pos2.row][enemy_pad.pos2.column] = enemy_pad.repr;
-    map[enemy_pad.layer][enemy_pad.pos3.row][enemy_pad.pos3.column] = enemy_pad.repr;
-    map[enemy_pad.layer][enemy_pad.pos4.row][enemy_pad.pos4.column] = enemy_pad.repr;
+    // 적군 장판
+    for (int i = 0; i < 2; i++) {
+        for (int j = 0; j < 2; j++) {
+            map[0][enemy_pad.pos1.row + i][enemy_pad.pos1.column + j] = enemy_pad.repr;
+        }
+    }
 
-    //아군 스파이스
-    map[ally_spice.layer][ally_spice.pos1.row][ally_spice.pos1.column] = ally_spice.repr;
+    // 아군 스파이스
+    map[0][ally_spice.pos1.row][ally_spice.pos1.column] = ally_spice.repr;
 
-    //적군 스파이스
-    map[enemy_spice.layer][enemy_spice.pos1.row][enemy_spice.pos1.column] = enemy_spice.repr;
-
-
-    // 적 장판이나 추가 오브젝트도 동일한 방식으로 추가 가능
+    // 적군 스파이스
+    map[0][enemy_spice.pos1.row][enemy_spice.pos1.column] = enemy_spice.repr;
 }
 
 void Biome(void) {
@@ -384,13 +436,22 @@ void Biome(void) {
 }
 
 void unit(void) {
-    //아군 하베스터
-    map[Harverster.layer][Harverster.pos1.row][Harverster.pos1.column] = Harverster.repr;
 
-    //적군 하코넨
-    map[Haconen.layer][Haconen.pos2.row][Haconen.pos2.column] = Haconen.repr;
+    // 초기 하베스터 생성 (아군)
+    units[unit_count].pos1 = (POSITION){ 14, 1 };
+    units[unit_count].repr = 'H';
+    units[unit_count].layer = 1;
+    map[units[unit_count].layer][units[unit_count].pos1.row][units[unit_count].pos1.column] = units[unit_count].repr;
+    unit_count++;
+    resource.population += 5;  // 하베스터는 인구수 5 소모
+
+    // 초기 하베스터 생성 (적군)
+    units[unit_count].pos1 = (POSITION){ 3, 58 };
+    units[unit_count].repr = 'H';
+    units[unit_count].layer = 1;
+    map[units[unit_count].layer][units[unit_count].pos1.row][units[unit_count].pos1.column] = units[unit_count].repr;
+    unit_count++;
 }
-
 //#으로 맵 틀 만듬
 void init(void) {
     // layer 0(map[0])에 지형 생성
@@ -620,14 +681,12 @@ void sandworm_move(void) {
     POSITION next_pos = sandworm_next_position();
     map[1][obj.pos.row][obj.pos.column] = -1;
 
-    // 하베스터를 만났는지 체크
+    // 하베스터가 있는 경우에만(-1이 아닐 때만) 제거
     if (map[1][next_pos.row][next_pos.column] == 'H') {
-        map[1][next_pos.row][next_pos.column] = -1;
-    }
-
-    // 30% 확률로 스파이스 생성
-    if (rand() % 100 < 30) {
-        spawn_spice(obj.pos);
+        if (next_pos.row <= ally_base.pos4.row + 1 && next_pos.column <= ally_base.pos4.column + 3) {
+            resource.population -= 5;  // 아군 하베스터인 경우만 인구수 감소
+        }
+        map[1][next_pos.row][next_pos.column] = -1;  // 맵에서만 삭제
     }
 
     obj.pos = next_pos;
@@ -643,21 +702,18 @@ void sandworm1_move(void) {
     POSITION next_pos = sandworm1_next_position();
     map[1][obj1.pos.row][obj1.pos.column] = -1;
 
-    // 하베스터를 만났는지 체크
+    // 하베스터가 있는 경우에만(-1이 아닐 때만) 제거
     if (map[1][next_pos.row][next_pos.column] == 'H') {
-        map[1][next_pos.row][next_pos.column] = -1;
-    }
-
-    // 30% 확률로 스파이스 생성
-    if (rand() % 100 < 30) {
-        spawn_spice(obj1.pos);
+        if (next_pos.row <= ally_base.pos4.row + 1 && next_pos.column <= ally_base.pos4.column + 3) {
+            resource.population -= 5;  // 아군 하베스터인 경우만 인구수 감소
+        }
+        map[1][next_pos.row][next_pos.column] = -1;  // 맵에서만 삭제
     }
 
     obj1.pos = next_pos;
     map[1][obj1.pos.row][obj1.pos.column] = obj1.repr;
     obj1.next_move_time = sys_clock + obj1.speed;
 }
-
 //어떤 지형인지 나오게함
 void print_terrain(void) {
     POSITION pos;
@@ -914,7 +970,7 @@ void process_command(KEY key) {
                     building_state.is_building_mode = false;
                     building_state.building_type = ' ';
                     building_state.cursor_size = 1;  // 건설 완료 후 1x1로 복귀
-                    print_command_message("B: 건설                                         ");
+                    print_command_message("B: 건설                                           ");
                 }
             }
             break;
@@ -923,7 +979,7 @@ void process_command(KEY key) {
             building_state.is_building_mode = false;
             building_state.building_type = ' ';
             building_state.cursor_size = 1;  // ESC로 취소 시 1x1로 복귀
-            print_command_message("B: 건설                                               ");
+            print_command_message("B: 건설                                                ");
             break;
         }
     }
@@ -1059,6 +1115,34 @@ bool can_produce_harvester(void) {
 
 bool can_build_here(void) {
     POSITION pos = cursor.current;
+    int cost;
+
+    // 각 건물 타입별 비용 설정
+    switch (building_state.building_type) {
+    case BD_PLATE:
+        cost = 2;
+        break;
+    case BD_DORM:
+        cost = 3;
+        break;
+    case BD_GARAGE:
+        cost = 4;
+        break;
+    case BD_BARRACKS:
+        cost = 5;
+        break;
+    case BD_SHELTER:
+        cost = 6;
+        break;
+    default:
+        return false;
+    }
+
+    // 스파이스 비용 체크
+    if (resource.spice < cost) {
+        print_system_message("스파이스가 부족합니다");
+        return false;
+    }
 
     // 맵 경계 체크
     if (pos.row < 1 || pos.row + building_state.cursor_size > MAP_HEIGHT - 1 ||
@@ -1090,53 +1174,137 @@ bool can_build_here(void) {
         }
     }
 
-    // 건설 비용 확인
-    for (int i = 0; i < sizeof(buildings) / sizeof(buildings[0]); i++) {
-        if (building_state.building_type == buildings[i].type) {
-            if (resource.spice < buildings[i].cost) {
-                print_system_message("스파이스가 부족합니다");
-                return false;
-            }
-            break;
-        }
-    }
-
     return true;
 }
-
 void build_structure(void) {
     POSITION pos = cursor.current;
     char type = building_state.building_type;
     int cost = 0;
 
-    // 건설 비용 찾기
-    for (int i = 0; i < sizeof(buildings) / sizeof(buildings[0]); i++) {
-        if (type == buildings[i].type) {
-            cost = buildings[i].cost;
-            break;
+    switch (type) {
+    case BD_PLATE:
+        cost = 2;
+        // 장판은 'P'로 2x2 채우기
+        for (int i = 0; i < 2; i++) {
+            for (int j = 0; j < 2; j++) {
+                map[0][pos.row + i][pos.column + j] = 'P';
+            }
         }
-    }
+        print_system_message("장판 설치 완료!");
+        break;
 
-    // 2x2 영역에 건물 건설
-    for (int i = 0; i < 2; i++) {
-        for (int j = 0; j < 2; j++) {
-            map[0][pos.row + i][pos.column + j] = type;
+    case BD_DORM:
+        cost = 3;
+        // 숙소는 'D'로 2x2 채우기
+        for (int i = 0; i < 2; i++) {
+            for (int j = 0; j < 2; j++) {
+                map[0][pos.row + i][pos.column + j] = 'D';
+            }
         }
+        resource.population_max += 10;
+        print_system_message("숙소 건설 완료! 인구 수용량이 10 증가했습니다.");
+        break;
+
+    case BD_GARAGE:
+        cost = 4;
+        // 창고는 'G'로 2x2 채우기
+        for (int i = 0; i < 2; i++) {
+            for (int j = 0; j < 2; j++) {
+                map[0][pos.row + i][pos.column + j] = 'G';
+            }
+        }
+        resource.spice_max += 10;
+        print_system_message("창고 건설 완료! 스파이스 저장량이 10 증가했습니다.");
+        break;
+
+    case BD_BARRACKS:
+        cost = 5;
+        // 병영은 'B'로 2x2 채우기
+        for (int i = 0; i < 2; i++) {
+            for (int j = 0; j < 2; j++) {
+                map[0][pos.row + i][pos.column + j] = 'B';
+            }
+        }
+        print_system_message("병영 건설 완료! 이제 보병을 생산할 수 있습니다.");
+        break;
+
+    case BD_SHELTER:
+        cost = 6;
+        // 은신처는 'S'로 2x2 채우기
+        for (int i = 0; i < 2; i++) {
+            for (int j = 0; j < 2; j++) {
+                map[0][pos.row + i][pos.column + j] = 'S';
+            }
+        }
+        print_system_message("은신처 건설 완료! 이제 프레멘을 생산할 수 있습니다.");
+        break;
     }
 
     // 자원 소비
     resource.spice -= cost;
-
-    // 건물 효과 적용
-    switch (type) {
-    case BD_DORM:
-        resource.population_max += 10;
-        break;
-    case BD_GARAGE:
-        resource.spice_max += 10;
-        break;
-    }
-
-    print_system_message("건설 완료!");
 }
 
+bool create_new_unit(char type, POSITION pos, bool is_ally) {
+    if (unit_count >= resource.population_max) {
+        return false;  // 최대 유닛 수 초과
+    }
+
+    int unit_supply_cost = 0;
+    switch (type) {
+    case 'H':  // Harvester
+        unit_supply_cost = 5;
+        break;
+    case 'F':  // Fremen
+        unit_supply_cost = 6;
+        break;
+    case 'S':  // Soldier
+        unit_supply_cost = 4;
+        break;
+    default:
+        return false;
+    }
+
+    if (resource.population + unit_supply_cost > resource.population_max) {
+        return false;  // 인구 수 초과
+    }
+
+    units[unit_count].pos1 = pos;
+    units[unit_count].repr = type;
+    units[unit_count].layer = 1;
+
+    map[units[unit_count].layer][pos.row][pos.column] = type;
+
+    resource.population += unit_supply_cost;
+    unit_count++;
+
+    return true;
+}
+
+// 유닛 삭제 함수 추가
+void remove_unit_at(POSITION pos) {
+    for (int i = 0; i < unit_count; i++) {
+        if (units[i].pos1.row == pos.row && units[i].pos1.column == pos.column) {
+            // 아군 하베스터 위치 체크 수정
+            // 아군 베이스 주변에서 생산된 하베스터도 포함
+            bool is_ally_unit = (units[i].pos1.row <= ally_base.pos4.row + 1 &&
+                units[i].pos1.column <= ally_base.pos4.column + 3);
+
+            // 아군 유닛인 경우에만 인구수 감소
+            if (is_ally_unit) {
+                if (units[i].repr == 'H') resource.population -= 5;
+                else if (units[i].repr == 'F') resource.population -= 6;
+                else if (units[i].repr == 'S') resource.population -= 4;
+            }
+
+            // 맵에서 유닛 제거
+            map[units[i].layer][pos.row][pos.column] = -1;
+
+            // 배열에서 유닛 제거 (마지막 유닛을 현재 위치로 이동)
+            if (i < unit_count - 1) {
+                units[i] = units[unit_count - 1];
+            }
+            unit_count--;
+            break;
+        }
+    }
+}

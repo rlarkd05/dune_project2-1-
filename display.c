@@ -35,7 +35,7 @@ void display(
 void display_resource(RESOURCE resource) {
     set_color(COLOR_RESOURCE);
     gotoxy(resource_pos);
-    printf("spice = %d/%d, population=%d/%d\n",
+    printf("spice = %d/%d, population=%d/%d  \n",
         resource.spice, resource.spice_max,
         resource.population, resource.population_max
     );
@@ -69,9 +69,20 @@ int get_color_at(POSITION pos) {
     // 문자에 따른 색상 반환
     switch (ch) {
     case 'B':
-        return (pos.row >= 15 && pos.column <= 2) ? COLOR_BLUE : COLOR_RED;
+        // 아군 본진 (14,1)~(15,2)
+        if (pos.row >= 15 && pos.row <= 16 && pos.column >= 1 && pos.column <= 2) {
+            return COLOR_BLUE;
+        }
+        // 적군 본진 (1,57)~(2,58)
+        else if (pos.row >= 1 && pos.row <= 2 && pos.column >= 57 && pos.column <= 58) {
+            return COLOR_RED;
+        }
+        // 그 외 병영
+        else {
+            return COLOR_GREEN;  // 또는 다른 색상
+        }
     case 'H':
-        return (pos.row >= 14 && pos.column <= 3) ? COLOR_BLUE : COLOR_RED;
+        return (pos.row >= 14 && pos.row <= 15 && pos.column >= 1 && pos.column <= 4) ? COLOR_BLUE : COLOR_RED;
     case '5':
         return COLOR_ORANGE;
     case 'P':
@@ -82,11 +93,16 @@ int get_color_at(POSITION pos) {
         return COLOR_BLACK;
     case 'W':
         return COLOR_YELLOW;
+    case 'D':  // 숙소
+        return COLOR_CYAN;
+    case 'G':  // 창고
+        return COLOR_MAGENTA;
+    case 'S':  // 은신처
+        return COLOR_WHITE;
     default:
-        return COLOR_DEFAULT; // 기본 색상
+        return COLOR_DEFAULT;
     }
 }
-
 
 void display_map(char map[N_LAYER][MAP_HEIGHT][MAP_WIDTH]) {
     project(map, backbuf);

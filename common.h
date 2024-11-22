@@ -161,4 +161,25 @@ typedef struct {
 } BUILDING_STATE;
 
 extern BUILDING_STATE building_state;
+
+typedef enum {
+	UNIT_TYPE_HARVESTER,
+	UNIT_TYPE_FREMEN,
+	UNIT_TYPE_SOLDIER,
+	UNIT_TYPE_TANK,
+	UNIT_TYPE_SANDWORM
+} UnitType;
+
+typedef struct {
+	UnitType type;
+	const char* name;
+	char symbol;
+	bool can_be_ally;
+	bool can_be_enemy;
+	int cost;
+} UnitInfo;
+
+// 외부 참조 선언
+extern const UnitInfo UNIT_INFO[];
+
 #endif
