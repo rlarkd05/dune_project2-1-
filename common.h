@@ -16,7 +16,14 @@
 #define MAP_WIDTH   60 //가로
 #define MAP_HEIGHT   18
 
+#define MAX_HARVESTERS 10
+#define HARVEST_TIME 4000    // 4초
+#define MIN_SPICE_HARVEST 2  // 최소 수확량
+#define MAX_SPICE_HARVEST 4  // 최대 수확량
 
+#define DOUBLE_PRESS_INTERVAL 200
+#define MAX_MSG_LINES 6  
+#define MAX_UNITS 10  // population_max의 최대값
 /* ================= 위치와 방향 =================== */
 // 맵에서 위치를 나타내는 구조체
 typedef struct {
@@ -44,6 +51,7 @@ typedef enum {
 	k_d,
 	k_g,
 	k_s,
+	k_m,
 } KEY;
 
 /* ================= 구조체 정의 =================== */
@@ -181,5 +189,26 @@ typedef struct {
 
 // 외부 참조 선언
 extern const UnitInfo UNIT_INFO[];
+
+// 하베스터 상태 열거형 정의
+typedef enum {
+	H_IDLE,              // 대기 상태
+	H_MOVING,            // 이동 중
+	H_READY_TO_HARVEST,  // 수확 준비 상태
+	H_HARVESTING,        // 수확 중
+	H_RETURNING          // 본진으로 귀환 중
+} HARVESTER_STATE;
+
+// 하베스터 구조체 정의
+typedef struct {
+	POSITION pos;              // 현재 위치
+	POSITION target_pos;       // 목표 위치
+	HARVESTER_STATE state;     // 현재 상태
+	int health;               // 체력
+	int spice_carried;        // 현재 운반 중인 스파이스 양
+	int harvest_start_time;   // 수확 시작 시간
+	bool is_selected;         // 선택 여부
+	bool is_ally;            // 아군 여부
+} HARVESTER;
 
 #endif
