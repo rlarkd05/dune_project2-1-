@@ -68,8 +68,8 @@ SELECTED_BUILDING selected_building = {
 };
 
 RESOURCE resource = {
-   .spice = 50,
-   .spice_max = 50,
+   .spice = 40,
+   .spice_max = 100,
    .population = 0,
    .population_max = 5
 };
@@ -79,15 +79,15 @@ OBJECT_SAMPLE obj = {
    .pos = {3, 10},
    .dest = {MAP_HEIGHT - 2, MAP_WIDTH - 2},
    .repr = 'W',
-   .speed = 600,
-   .next_move_time = 600
+   .speed = 2000,
+   .next_move_time = 2000
 };
 
 OBJECT_SAMPLE1 obj1 = {
     .pos = {16, 50},
     .dest = {(MAP_HEIGHT + 2) - MAP_HEIGHT, (MAP_WIDTH + 2) - MAP_HEIGHT},
     .repr = 'W',
-    .speed = 600,
+    .speed = 2000,
     .next_move_time = 600
 };
 
@@ -315,9 +315,61 @@ int main(void) {
         }
         else {
             switch (key) {
-            case k_b:  // B키 처리
+            case k_b:  // 건설 메뉴
                 process_command(key);
                 break;
+
+            case k_space:  // 스페이스바 - 선택 또는 위치 확정
+                if (building_state.is_building_mode) {
+                    process_command(key);
+                }
+                else {
+                    // 하베스터가 선택된 상태에서 스페이스바 (위치 확정)
+                    bool harvester_command_processed = false;
+                    if (harvester_selected) {
+                        for (int i = 0; i < harvester_count; i++) {
+                            if (harvesters[i].is_selected) {
+                                process_harvester_command(&harvesters[i], key, cursor.current);
+                                harvester_command_processed = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    // 하베스터 명령이 처리되지 않았으면 건물/유닛 선택
+                    if (!harvester_command_processed) {
+                        clean_status();
+                        select_building();
+                    }
+                }
+                break;
+
+            case k_m:  // 이동 명령
+                if (harvester_selected) {
+                    for (int i = 0; i < harvester_count; i++) {
+                        if (harvesters[i].is_selected) {
+                            process_harvester_command(&harvesters[i], k_m, cursor.current);
+                            print_system_message("이동할 위치를 선택하고 스페이스바를 눌러주세요");
+                            break;
+                        }
+                    }
+                }
+                break;
+
+            case k_h:  // 수확 명령
+                if (harvester_selected) {
+                    for (int i = 0; i < harvester_count; i++) {
+                        if (harvesters[i].is_selected) {
+                            process_harvester_command(&harvesters[i], k_h, cursor.current);
+                            break;
+                        }
+                    }
+                }
+                else if (selected_building.type == 'B' && selected_building.is_ally) {
+                    process_command(key);  // 하베스터 생산
+                }
+                break;
+
             case k_p:  // 장판
             case k_d:  // 숙소
             case k_g:  // 창고
@@ -326,39 +378,26 @@ int main(void) {
                     process_command(key);
                 }
                 break;
-            case k_space:
-                if (building_state.is_building_mode) {
-                    process_command(key);
-                }
-                else {
-                    select_building();
-                    print_terrain();
-                    print_unit_info();
-                }
-                break;
-            case k_h:  // 하베스터 수확 명령
-            case k_m:  // 하베스터 이동 명령
+
+            case k_esc:  // 선택 취소
                 if (harvester_selected) {
                     for (int i = 0; i < harvester_count; i++) {
                         if (harvesters[i].is_selected) {
-                            process_harvester_command(&harvesters[i], key, cursor.current);
+                            harvesters[i].is_selected = false;
+                            harvester_selected = false;
+                            clean_status();
+                            print_command_message("B: 건설");
                             break;
                         }
                     }
                 }
-                break;
-            case k_esc:
-                if (selected_building.is_selected || building_state.is_building_mode) {
+                else if (selected_building.is_selected || building_state.is_building_mode) {
                     process_command(key);
                 }
                 break;
+
             case k_quit:
                 outro();
-                break;
-            default:
-                if (selected_building.is_selected) {
-                    process_command(key);
-                }
                 break;
             }
         }
@@ -370,6 +409,7 @@ int main(void) {
         Sleep(TICK);
         sys_clock += 10;
     }
+    return 0;
 }
 /* ================= subfunctions =================== */
 void intro(void) {
@@ -455,21 +495,14 @@ void Biome(void) {
 }
 
 void unit(void) {
-
     // 초기 하베스터 생성 (아군)
-    units[unit_count].pos1 = (POSITION){ 14, 1 };
-    units[unit_count].repr = 'H';
-    units[unit_count].layer = 1;
-    map[units[unit_count].layer][units[unit_count].pos1.row][units[unit_count].pos1.column] = units[unit_count].repr;
-    unit_count++;
-    resource.population += 5;  // 하베스터는 인구수 5 소모
+    POSITION ally_pos = { 14, 1 };
+    init_harvester(ally_pos, true);
+    resource.population += 5;
 
     // 초기 하베스터 생성 (적군)
-    units[unit_count].pos1 = (POSITION){ 3, 58 };
-    units[unit_count].repr = 'H';
-    units[unit_count].layer = 1;
-    map[units[unit_count].layer][units[unit_count].pos1.row][units[unit_count].pos1.column] = units[unit_count].repr;
-    unit_count++;
+    POSITION enemy_pos = { 3, 58 };
+    init_harvester(enemy_pos, false);
 }
 //#으로 맵 틀 만듬
 void init(void) {
@@ -700,13 +733,14 @@ void sandworm_move(void) {
     POSITION next_pos = sandworm_next_position();
     map[1][obj.pos.row][obj.pos.column] = -1;
 
-    // 하베스터가 있는 경우에만(-1이 아닐 때만) 제거
+    // 하베스터가 있는 경우
     if (map[1][next_pos.row][next_pos.column] == 'H') {
-        if (next_pos.row <= ally_base.pos4.row + 1 && next_pos.column <= ally_base.pos4.column + 3) {
-            resource.population -= 5;  // 아군 하베스터인 경우만 인구수 감소
-        }
-        map[1][next_pos.row][next_pos.column] = -1;  // 맵에서만 삭제
+        // units 배열에서도 제거
+        remove_unit_at(next_pos);
     }
+
+    // 스파이스 생성 시도
+    spawn_spice(obj.pos);  // 이전 위치에 스파이스 생성 시도
 
     obj.pos = next_pos;
     map[1][obj.pos.row][obj.pos.column] = obj.repr;
@@ -721,13 +755,14 @@ void sandworm1_move(void) {
     POSITION next_pos = sandworm1_next_position();
     map[1][obj1.pos.row][obj1.pos.column] = -1;
 
-    // 하베스터가 있는 경우에만(-1이 아닐 때만) 제거
+    // 하베스터가 있는 경우
     if (map[1][next_pos.row][next_pos.column] == 'H') {
-        if (next_pos.row <= ally_base.pos4.row + 1 && next_pos.column <= ally_base.pos4.column + 3) {
-            resource.population -= 5;  // 아군 하베스터인 경우만 인구수 감소
-        }
-        map[1][next_pos.row][next_pos.column] = -1;  // 맵에서만 삭제
+        // units 배열에서도 제거
+        remove_unit_at(next_pos);
     }
+
+    // 스파이스 생성 시도
+    spawn_spice(obj1.pos);  // 이전 위치에 스파이스 생성 시도
 
     obj1.pos = next_pos;
     map[1][obj1.pos.row][obj1.pos.column] = obj1.repr;
@@ -774,7 +809,7 @@ void print_terrain(void) {
     else if (terrain == 'R') {
         printf("바위");
     }
-    else if (terrain == '5') {
+    else if (terrain >= '1' && terrain <= '8') {  // 1~8까지 모두 스파이스로 처리
         printf("스파이스");
     }
     else {
@@ -795,7 +830,7 @@ void print_terrain(void) {
     else if (terrain == 'R') {
         printf("샌드웜이 통과할 수 없음");
     }
-    else if (terrain == '5') {
+    else if (terrain >= '1' && terrain <= '8') {  // 1~8까지 모두 스파이스로 처리
         printf("수집 가능한 자원");
     }
     else {
@@ -812,41 +847,21 @@ void select_unit(void) {
 
     if (unit == 'H') {
         for (int i = 0; i < harvester_count; i++) {
-            HARVESTER* h = &harvesters[i];
-            if (h->pos.row == cursor.current.row &&
-                h->pos.column == cursor.current.column) {
-                h->is_selected = true;
-                harvester_selected = true;  // 하베스터 선택됨
-                print_harvester_info(h);
-                if (h->is_ally) {
+            if (harvesters[i].pos.row == cursor.current.row &&
+                harvesters[i].pos.column == cursor.current.column) {
+                harvesters[i].is_selected = true;
+                harvester_selected = true;
+                print_harvester_info(&harvesters[i]);
+                if (harvesters[i].is_ally) {
                     print_system_message("아군 하베스터를 선택했습니다.");
                     print_command_message("M: 이동 | H: 수확 | ESC: 취소");
                 }
                 else {
                     print_system_message("적군 하베스터를 선택했습니다.");
                 }
-                break;
+                return;
             }
         }
-        if (!harvester_selected) {  // 하베스터를 못 찾았다면 기존 유닛 정보 출력
-            clean_status();
-            print_unit_info();
-            if (cursor.current.row == Harverster.pos1.row &&
-                cursor.current.column == Harverster.pos1.column) {
-                print_system_message("아군 하베스터를 선택했습니다");
-                print_command_message("M: 이동 | H: 수확 | ESC: 취소");
-            }
-            else if (cursor.current.row == Haconen.pos2.row &&
-                cursor.current.column == Haconen.pos2.column) {
-                print_system_message("적군 하베스터를 선택했습니다");
-            }
-        }
-    }
-    else if (unit == 'W') {
-        selected_building.is_selected = true;
-        clean_status();
-        print_unit_info();
-        print_system_message("샌드웜을 선택했습니다");
     }
 }
 void print_unit_info(void) {
@@ -951,18 +966,18 @@ POSITION find_nearest_unit(POSITION current_pos) {
 }
 // 샌드웜이 스파이스를 생성하는 함수
 void spawn_spice(POSITION pos) {
-    // 15% 확률로 스파이스 생성
-    if (rand() % 100 < 15 && map[0][pos.row][pos.column] == ' ') {
-        map[0][pos.row][pos.column] = '5';
+    if (rand() % 100 < 15 && map[0][pos.row][pos.column] == ' ') {  // 15% 확률
+        // 2에서 8 사이의 랜덤한 숫자를 문자로 변환
+        char spice_amount = '0' + (2 + (rand() % 7));  // 2~8 랜덤 생성
+        map[0][pos.row][pos.column] = spice_amount;
     }
 }
-
 // 건설 메뉴 처리 함수 수정
 void process_command(KEY key) {
     if (!selected_building.is_selected && !building_state.is_building_mode) {
         if (key == k_b) {
             building_state.is_building_mode = true;
-            building_state.cursor_size = 1;  // 초기 상태는 1x1
+            building_state.cursor_size = 1;
             print_command_message("P:장판 D:숙소 G:창고 B:병영 S:은신처 ESC:취소");
         }
     }
@@ -1019,18 +1034,26 @@ void process_command(KEY key) {
         }
     }
     else if (selected_building.type == 'B' && selected_building.is_ally) {
-        print_command_message("H:하베스터 생산 | ESC:취소");
-
         switch (key) {
-        case k_h:
+            // 생산 위치를 초기 하베스터 근처로 수정
+        case k_h:  // 하베스터 생산
             if (resource.spice < 5) {
                 print_system_message("스파이스가 부족합니다!");
             }
             else if (resource.population + 5 > resource.population_max) {
                 print_system_message("인구 수 제한을 초과했습니다!");
             }
+            else if (harvester_count >= MAX_HARVESTERS) {
+                print_system_message("더 이상 하베스터를 생산할 수 없습니다!");
+            }
             else {
-                map[1][ally_base.pos2.row - 1][ally_base.pos2.column] = 'H';
+                // 생산 위치 설정 (초기 하베스터 근처)
+                POSITION new_pos = {
+                    Harverster.pos1.row,  // 초기 하베스터와 같은 row
+                    Harverster.pos1.column + 1  // 초기 하베스터 옆에 생성
+                };
+
+                init_harvester(new_pos, true);
                 resource.spice -= 5;
                 resource.population += 5;
                 print_system_message("하베스터가 생산되었습니다!");
@@ -1315,22 +1338,42 @@ bool create_new_unit(char type, POSITION pos, bool is_ally) {
     return true;
 }
 
-// 유닛 삭제 함수 추가
+// 유닛 제거 함수
 void remove_unit_at(POSITION pos) {
-    for (int i = 0; i < unit_count; i++) {
-        if (units[i].pos1.row == pos.row && units[i].pos1.column == pos.column) {
-            // 아군 하베스터 위치 체크 수정
-            // 아군 베이스 주변에서 생산된 하베스터도 포함
-            bool is_ally_unit = (units[i].pos1.row <= ally_base.pos4.row + 1 &&
-                units[i].pos1.column <= ally_base.pos4.column + 3);
-
-            // 아군 유닛인 경우에만 인구수 감소
-            if (is_ally_unit) {
-                if (units[i].repr == 'H') resource.population -= 5;
-                else if (units[i].repr == 'F') resource.population -= 6;
-                else if (units[i].repr == 'S') resource.population -= 4;
+    // 하베스터 배열에서 해당 위치의 하베스터 찾아서 제거
+    for (int i = 0; i < harvester_count; i++) {
+        if (harvesters[i].pos.row == pos.row &&
+            harvesters[i].pos.column == pos.column) {
+            // 아군 하베스터인 경우 인구수 감소
+            if (harvesters[i].is_ally) {
+                resource.population -= 5;
             }
 
+            // 하베스터의 상태 초기화
+            harvesters[i].state = H_IDLE;
+            harvesters[i].is_selected = false;
+            harvesters[i].auto_harvest = false;
+            harvesters[i].spice_carried = 0;
+
+            // 하베스터 배열에서 제거 (마지막 하베스터를 현재 위치로 이동)
+            if (i < harvester_count - 1) {
+                harvesters[i] = harvesters[harvester_count - 1];
+            }
+            harvester_count--;
+
+            // 선택 상태였다면 전역 선택 상태도 해제
+            if (harvester_selected) {
+                harvester_selected = false;
+                clean_status();
+                print_command_message("B: 건설");
+            }
+            break;
+        }
+    }
+
+    // units 배열에서도 제거
+    for (int i = 0; i < unit_count; i++) {
+        if (units[i].pos1.row == pos.row && units[i].pos1.column == pos.column) {
             // 맵에서 유닛 제거
             map[units[i].layer][pos.row][pos.column] = -1;
 
@@ -1343,7 +1386,6 @@ void remove_unit_at(POSITION pos) {
         }
     }
 }
-
 void init_harvester(POSITION pos, bool is_ally) {
     if (harvester_count >= MAX_HARVESTERS) return;
 
@@ -1356,6 +1398,8 @@ void init_harvester(POSITION pos, bool is_ally) {
     h->harvest_start_time = 0;
     h->is_selected = false;
     h->is_ally = is_ally;
+    h->speed = 500;           // 샌드웜보다 더 빠르게 설정
+    h->next_move_time = 500;  // 초기 이동 시간
 
     map[1][pos.row][pos.column] = 'H';
     harvester_count++;
@@ -1365,105 +1409,231 @@ void init_harvester(POSITION pos, bool is_ally) {
 void process_harvester_command(HARVESTER* h, KEY key, POSITION target) {
     if (!h->is_selected) return;
 
-    if (key == k_m) {
-        h->target_pos = target;
-        h->state = H_MOVING;
-        print_system_message("이동 명령이 내려졌습니다.");
-    }
-    else if (key == k_h) {
-        if (h->state == H_MOVING) {
-            print_system_message("이동 중에는 수확할 수 없습니다.");
-            return;
-        }
+    switch (key) {
+    case k_m:  // 이동 명령
+        h->state = H_WAIT_MOVE_POS;
+        h->auto_harvest = false;  // 자동 수확 모드 해제
+        print_system_message("이동할 위치를 선택하고 스페이스바를 눌러주세요.");
+        break;
 
-        if (!is_spice_deposit(target)) {
-            print_system_message("스파이스 매장지를 선택해주세요.");
-            return;
-        }
-
-        if (is_occupied_by_harvester(target)) {
-            h->state = H_READY_TO_HARVEST;
-            print_system_message("다른 하베스터가 작업중입니다. 대기합니다.");
+    case k_h:  // 수확 명령
+        if (!is_at_base(h)) {  // 본진이 아닐 때만 수확 명령 가능
+            h->state = H_WAIT_HARVEST_POS;
+            print_system_message("수확할 스파이스를 선택하고 스페이스바를 눌러주세요.");
         }
         else {
-            h->state = H_HARVESTING;
-            h->harvest_start_time = sys_clock;
-            print_system_message("수확을 시작합니다.");
+            h->state = H_WAIT_HARVEST_POS;  // 본진에 있어도 수확 명령 가능하도록
+            print_system_message("수확할 스파이스를 선택하고 스페이스바를 눌러주세요.");
         }
-    }
-    else if (key == k_esc) {
+        break;
+
+    case k_space:  // 위치 확정
+        if (h->state == H_WAIT_MOVE_POS) {
+            h->target_pos = cursor.current;
+            h->state = H_MOVING;
+            print_system_message("선택한 위치로 이동합니다.");
+        }
+        else if (h->state == H_WAIT_HARVEST_POS) {
+            // ... (나머지 스페이스바 처리 코드는 그대로)
+            if (is_spice_deposit(cursor.current)) {
+                h->harvest_pos = cursor.current;
+                const int dx[] = { 0, 0, -1, 1 };
+                const int dy[] = { -1, 1, 0, 0 };
+                bool found_spot = false;
+
+                for (int i = 0; i < 4; i++) {
+                    int new_row = cursor.current.row + dy[i];
+                    int new_col = cursor.current.column + dx[i];
+
+                    if (new_row < 0 || new_row >= MAP_HEIGHT ||
+                        new_col < 0 || new_col >= MAP_WIDTH) continue;
+
+                    if (map[0][new_row][new_col] == ' ' && map[1][new_row][new_col] == -1) {
+                        h->target_pos.row = new_row;
+                        h->target_pos.column = new_col;
+                        found_spot = true;
+                        break;
+                    }
+                }
+
+                if (found_spot) {
+                    h->state = H_MOVING;
+                    h->auto_harvest = true;
+                    print_system_message("스파이스 매장지 근처로 이동합니다.");
+                }
+                else {
+                    print_system_message("스파이스 근처에 접근할 수 있는 공간이 없습니다.");
+                }
+            }
+            else {
+                print_system_message("스파이스 매장지를 선택해주세요.");
+            }
+        }
+        break;
+
+    case k_esc:
         h->is_selected = false;
         harvester_selected = false;
         clean_status();
         print_command_message("B: 건설");
+        break;
     }
 }
 
-// 하베스터 상태 업데이트
+// 하베스터 상태 업데이트 함수
 void update_harvester(HARVESTER* h) {
-    if (h->state == H_MOVING) {
-        if (h->pos.row == h->target_pos.row && h->pos.column == h->target_pos.column) {
-            h->state = H_IDLE;
+    switch (h->state) {
+    case H_MOVING:
+    {
+        bool near_spice = false;
+        if (h->auto_harvest) {
+            if ((h->pos.row + 1 == h->harvest_pos.row && h->pos.column == h->harvest_pos.column) ||
+                (h->pos.row - 1 == h->harvest_pos.row && h->pos.column == h->harvest_pos.column) ||
+                (h->pos.row == h->harvest_pos.row && h->pos.column + 1 == h->harvest_pos.column) ||
+                (h->pos.row == h->harvest_pos.row && h->pos.column - 1 == h->harvest_pos.column)) {
+                near_spice = true;
+            }
         }
-        else {
-            move_harvester(h);
-        }
-    }
-    else if (h->state == H_READY_TO_HARVEST) {
-        POSITION spice_pos = get_spice_position(h->is_ally);
-        if (!is_occupied_by_harvester(spice_pos)) {
+
+        if (near_spice) {
             h->state = H_HARVESTING;
             h->harvest_start_time = sys_clock;
+            print_system_message("스파이스 수확을 시작합니다...");  // 수확 시작할 때만 메시지 출력
+        }
+        else if (h->pos.row == h->target_pos.row && h->pos.column == h->target_pos.column) {
+            h->state = H_IDLE;
+            print_system_message("이동이 완료되었습니다.");
+        }
+        else {
+            if (sys_clock > h->next_move_time) {
+                move_harvester(h);
+            }
         }
     }
-    else if (h->state == H_HARVESTING) {
-        if (sys_clock - h->harvest_start_time >= HARVEST_TIME) {
-            h->spice_carried = 2 + (rand() % 3);  // 2-4 스파이스 수확
-            h->state = H_RETURNING;
+    break;
 
-            // 본진으로 이동 설정
-            if (h->is_ally) {
-                h->target_pos.row = ally_base.pos1.row;
-                h->target_pos.column = ally_base.pos1.column;
+    case H_HARVESTING:
+        // 수확 중일 때는 메시지를 출력하지 않음
+        if (sys_clock - h->harvest_start_time >= HARVEST_TIME) {
+            int current_spice = map[0][h->harvest_pos.row][h->harvest_pos.column] - '0';
+            int intended_harvest = 2 + (rand() % 3);
+            h->spice_carried = min(current_spice, intended_harvest);
+
+            if (current_spice <= h->spice_carried) {
+                map[0][h->harvest_pos.row][h->harvest_pos.column] = ' ';
+                print_system_message("남은 스파이스를 모두 수확했습니다!");
             }
             else {
-                h->target_pos.row = enemy_base.pos1.row;
-                h->target_pos.column = enemy_base.pos1.column;
+                map[0][h->harvest_pos.row][h->harvest_pos.column] = '0' + (current_spice - h->spice_carried);
+                if (h->spice_carried == 2) print_system_message("수확 완료! 2 스파이스를 획득했습니다.");
+                if (h->spice_carried == 3) print_system_message("수확 완료! 3 스파이스를 획득했습니다.");
+                if (h->spice_carried == 4) print_system_message("수확 완료! 4 스파이스를 획득했습니다.");
+            }
+
+            h->state = H_RETURNING;
+
+            if (h->is_ally) {
+                h->target_pos = ally_base.pos1;
+            }
+            else {
+                h->target_pos = enemy_base.pos1;
             }
         }
-    }
-    else if (h->state == H_RETURNING) {
-        if (is_at_base(h)) {
+        break;
+
+        // update_harvester 함수의 H_RETURNING case 부분 수정
+    case H_RETURNING:
+    {
+        bool near_base = false;
+        if (h->is_ally) {
+            // 본진 위쪽 한 칸에서 전달
+            near_base = (h->pos.row == ally_base.pos1.row - 1 &&
+                h->pos.column >= ally_base.pos1.column &&
+                h->pos.column <= ally_base.pos4.column);
+
+            // 목표 위치도 본진 바로 위로 설정
+            if (h->target_pos.row == ally_base.pos1.row &&
+                h->target_pos.column == ally_base.pos1.column) {
+                h->target_pos.row = ally_base.pos1.row - 1;
+            }
+        }
+        else {
+            // 적군 본진 위쪽 한 칸에서 전달
+            near_base = (h->pos.row == enemy_base.pos1.row - 1 &&
+                h->pos.column >= enemy_base.pos1.column &&
+                h->pos.column <= enemy_base.pos4.column);
+
+            // 목표 위치도 본진 바로 위로 설정
+            if (h->target_pos.row == enemy_base.pos1.row &&
+                h->target_pos.column == enemy_base.pos1.column) {
+                h->target_pos.row = enemy_base.pos1.row - 1;
+            }
+        }
+
+        if (near_base) {
             if (h->is_ally) {
                 int space_available = resource.spice_max - resource.spice;
                 int delivered = min(space_available, h->spice_carried);
                 resource.spice += delivered;
+                if (delivered < h->spice_carried) {
+                    print_system_message("창고가 가득 차서 일부 스파이스를 버렸습니다.");
+                }
+                else {
+                    if (delivered == 2) print_system_message("2 스파이스를 창고에 저장했습니다.");
+                    if (delivered == 3) print_system_message("3 스파이스를 창고에 저장했습니다.");
+                    if (delivered == 4) print_system_message("4 스파이스를 창고에 저장했습니다.");
+                }
             }
             h->spice_carried = 0;
-            h->state = H_IDLE;
+
+            // 스파이스가 1 이상 남아있으면 계속 수확
+            if (h->auto_harvest && map[0][h->harvest_pos.row][h->harvest_pos.column] >= '1' &&
+                map[0][h->harvest_pos.row][h->harvest_pos.column] <= '8') {
+                h->target_pos = h->harvest_pos;  // 같은 스파이스로 다시 이동
+                h->state = H_MOVING;
+                print_system_message("다시 스파이스 매장지로 이동합니다...");
+            }
+            else {
+                h->state = H_IDLE;
+                h->auto_harvest = false;  // 자동 수확 모드 해제
+                h->target_pos = h->pos;  // 현재 위치를 목표 위치로 설정 (제자리에 멈춤)
+                print_system_message("매장지가 고갈되었습니다. 현재 위치에서 대기합니다.");
+            }
         }
         else {
-            move_harvester(h);
+            if (sys_clock > h->next_move_time) {
+                move_harvester(h);
+            }
         }
+        break;
+    }
+
+
+    case H_WAIT_MOVE_POS:
+    case H_WAIT_HARVEST_POS:
+    case H_IDLE:
+        break;
     }
 }
-
 // 하베스터 이동 처리
 void move_harvester(HARVESTER* h) {
-    map[1][h->pos.row][h->pos.column] = -1;
-
-    // 느린 이동 (2틱에 한 칸)
-    if (sys_clock % 2 == 0) {
-        if (h->pos.column != h->target_pos.column) {
-            h->pos.column += (h->target_pos.column > h->pos.column) ? 1 : -1;
-        }
-        else if (h->pos.row != h->target_pos.row) {
-            h->pos.row += (h->target_pos.row > h->pos.row) ? 1 : -1;
-        }
+    if (sys_clock <= h->next_move_time) {
+        return;
     }
 
-    map[1][h->pos.row][h->pos.column] = 'H';
+    map[1][h->pos.row][h->pos.column] = -1;  // 현재 위치에서 제거
+
+    if (h->pos.column != h->target_pos.column) {
+        h->pos.column += (h->target_pos.column > h->pos.column) ? 1 : -1;
+    }
+    else if (h->pos.row != h->target_pos.row) {
+        h->pos.row += (h->target_pos.row > h->pos.row) ? 1 : -1;
+    }
+
+    map[1][h->pos.row][h->pos.column] = 'H';  // 새 위치에 표시
+    h->next_move_time = sys_clock + h->speed;  // 다음 이동 시간 설정
 }
+
 
 // 모든 하베스터 업데이트
 void update_all_harvesters(void) {
@@ -1489,12 +1659,9 @@ POSITION get_spice_position(bool is_ally) {
 
 // 스파이스 매장지인지 확인하는 함수
 bool is_spice_deposit(POSITION pos) {
-    if (map[0][pos.row][pos.column] == '5') {
-        return true;
-    }
-    return false;
+    char terrain = map[0][pos.row][pos.column];
+    return (terrain >= '1' && terrain <= '8');  // 1~8 모두 스파이스로 처리
 }
-
 // 다른 하베스터가 있는지 확인하는 함수
 bool is_occupied_by_harvester(POSITION pos) {
     for (int i = 0; i < harvester_count; i++) {
@@ -1527,7 +1694,7 @@ bool is_at_base(HARVESTER* h) {
     return false;
 }
 
-// 하베스터 상태창 출력
+// 하베스터 정보 출력 함수
 void print_harvester_info(HARVESTER* h) {
     POSITION pos;
     pos.row = 2;
@@ -1554,21 +1721,12 @@ void print_harvester_info(HARVESTER* h) {
     gotoxy(pos);
     printf("상태: ");
     switch (h->state) {
-    case H_IDLE:
-        printf("대기 중");
-        break;
-    case H_MOVING:
-        printf("이동 중");
-        break;
-    case H_READY_TO_HARVEST:
-        printf("수확 준비");
-        break;
-    case H_HARVESTING:
-        printf("수확 중");
-        break;
-    case H_RETURNING:
-        printf("귀환 중");
-        break;
+    case H_IDLE: printf("대기 중"); break;
+    case H_MOVING: printf("이동 중"); break;
+    case H_HARVESTING: printf("수확 중"); break;
+    case H_RETURNING: printf("귀환 중"); break;
+    case H_WAIT_MOVE_POS: printf("이동 위치 대기 중"); break;
+    case H_WAIT_HARVEST_POS: printf("수확 위치 대기 중"); break;
     }
 
     print_command_message("M: 이동 | H: 수확 | ESC: 취소");

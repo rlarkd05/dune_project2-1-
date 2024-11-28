@@ -24,6 +24,7 @@
 #define DOUBLE_PRESS_INTERVAL 200
 #define MAX_MSG_LINES 6  
 #define MAX_UNITS 10  // population_max의 최대값
+#define MAX_HARVESTERS 10
 /* ================= 위치와 방향 =================== */
 // 맵에서 위치를 나타내는 구조체
 typedef struct {
@@ -192,23 +193,28 @@ extern const UnitInfo UNIT_INFO[];
 
 // 하베스터 상태 열거형 정의
 typedef enum {
-	H_IDLE,              // 대기 상태
-	H_MOVING,            // 이동 중
-	H_READY_TO_HARVEST,  // 수확 준비 상태
-	H_HARVESTING,        // 수확 중
-	H_RETURNING          // 본진으로 귀환 중
+	H_IDLE,            // 대기 상태
+	H_MOVING,          // 이동 중
+	H_HARVESTING,      // 수확 중
+	H_RETURNING,       // 본진으로 귀환 중
+	H_WAIT_MOVE_POS,   // M 명령 후 이동 위치 입력 대기
+	H_WAIT_HARVEST_POS // H 명령 후 스파이스 위치 입력 대기
 } HARVESTER_STATE;
 
-// 하베스터 구조체 정의
-typedef struct {
-	POSITION pos;              // 현재 위치
-	POSITION target_pos;       // 목표 위치
-	HARVESTER_STATE state;     // 현재 상태
-	int health;               // 체력
-	int spice_carried;        // 현재 운반 중인 스파이스 양
-	int harvest_start_time;   // 수확 시작 시간
-	bool is_selected;         // 선택 여부
-	bool is_ally;            // 아군 여부
+typedef struct _harvester {
+	POSITION pos;          // 현재 위치
+	POSITION target_pos;   // 목표 위치
+	POSITION harvest_pos;  // 수확 위치 저장
+	HARVESTER_STATE state;
+	int health;
+	int spice_carried;
+	int harvest_start_time;
+	bool is_selected;
+	bool is_ally;
+	bool auto_harvest;
+	int speed;            // 이동 속도 (추가)
+	int next_move_time;   // 다음 이동 시간 (추가)
 } HARVESTER;
 
+void remove_unit_at(POSITION pos);
 #endif
