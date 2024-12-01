@@ -43,6 +43,15 @@ bool is_at_base(HARVESTER* h);
 void move_harvester(HARVESTER* h);
 void update_all_harvesters(void);
 POSITION get_spice_position(bool is_ally);
+void produce_soldier(void);
+void produce_fremen(void);
+
+void init_combat_unit(POSITION pos, char type, bool is_ally);
+void process_combat_unit_command(COMBAT_UNIT* unit, KEY key, POSITION target);
+void print_combat_unit_info(COMBAT_UNIT* unit);
+void update_combat_unit(COMBAT_UNIT* unit);
+void move_combat_unit(COMBAT_UNIT* unit);
+void update_all_combat_units(void);
 
 /* ================= control =================== */
 int sys_clock = 0;
@@ -55,6 +64,9 @@ int unit_count = 0;
 HARVESTER harvesters[MAX_HARVESTERS];
 int harvester_count = 0;
 bool harvester_selected = false;
+
+COMBAT_UNIT selected_combat_unit;  // 현재 선택된 전투 유닛
+bool is_combat_unit_selected = false;
 
 /* ================= game data =================== */
 char map[N_LAYER][MAP_HEIGHT][MAP_WIDTH] = { 0 };
@@ -71,7 +83,7 @@ RESOURCE resource = {
    .spice = 40,
    .spice_max = 100,
    .population = 0,
-   .population_max = 5
+   .population_max = 20
 };
 
 //오브젝트 샘플 샌드웜 될 예정
@@ -319,7 +331,12 @@ int main(void) {
                 process_command(key);
                 break;
 
-            case k_space:  // 스페이스바 - 선택 또는 위치 확정
+            case k_space:  // 스페이스바
+                if (is_combat_unit_selected &&
+                    (selected_combat_unit.state == UNIT_STATE_WAIT_MOVE_POS ||
+                        selected_combat_unit.state == UNIT_STATE_WAIT_PATROL_POS)) {
+                    process_combat_unit_command(&selected_combat_unit, key, cursor.current);
+                }  // 스페이스바 - 선택 또는 위치 확정
                 if (building_state.is_building_mode) {
                     process_command(key);
                 }
@@ -346,6 +363,7 @@ int main(void) {
 
             case k_m:  // 이동 명령
                 if (harvester_selected) {
+                    // 하베스터는 그대로 유지
                     for (int i = 0; i < harvester_count; i++) {
                         if (harvesters[i].is_selected) {
                             process_harvester_command(&harvesters[i], k_m, cursor.current);
@@ -354,7 +372,17 @@ int main(void) {
                         }
                     }
                 }
+                else if (is_combat_unit_selected) {
+                    process_combat_unit_command(&selected_combat_unit, key, cursor.current);
+                }
                 break;
+
+            case k_t:  // 순찰 명령
+                if (is_combat_unit_selected) {
+                    process_combat_unit_command(&selected_combat_unit, key, cursor.current);
+                }
+                break;
+
 
             case k_h:  // 수확 명령
                 if (harvester_selected) {
@@ -377,6 +405,13 @@ int main(void) {
                 if (building_state.is_building_mode) {
                     process_command(key);
                 }
+                break;
+            case k_l:  // 보병 생산
+                produce_soldier();
+                break;
+
+            case k_f:  // 프레멘 생산
+                produce_fremen();
                 break;
 
             case k_esc:  // 선택 취소
@@ -403,6 +438,7 @@ int main(void) {
         }
 
         update_all_harvesters();
+        update_all_combat_units();
         sandworm_move();
         sandworm1_move();
         display(resource, map, cursor);
@@ -843,9 +879,10 @@ void select_unit(void) {
 
     selected_building.is_selected = false;
     selected_building.type = ' ';
-    harvester_selected = false;  // 하베스터 선택 상태 초기화
+    harvester_selected = false;
 
     if (unit == 'H') {
+        // 하베스터는 그대로 유지
         for (int i = 0; i < harvester_count; i++) {
             if (harvesters[i].pos.row == cursor.current.row &&
                 harvesters[i].pos.column == cursor.current.column) {
@@ -863,7 +900,24 @@ void select_unit(void) {
             }
         }
     }
+    else if (unit == 'S' || unit == 'F') {
+        selected_combat_unit.pos = cursor.current;
+        selected_combat_unit.type = unit;
+        selected_combat_unit.speed = (unit == 'S') ? 1000 : 400;
+        selected_combat_unit.state = UNIT_STATE_IDLE;
+        selected_combat_unit.is_selected = true;
+        is_combat_unit_selected = true;
+
+        print_combat_unit_info(&selected_combat_unit);
+        if (selected_combat_unit.is_ally) {
+            print_system_message(unit == 'S' ?
+                "아군 보병을 선택했습니다." :
+                "아군 프레멘을 선택했습니다.");
+            print_command_message("M: 이동 | T: 순찰 | ESC: 취소");
+        }
+    }
 }
+
 void print_unit_info(void) {
     POSITION pos;
     char unit = map[1][cursor.current.row][cursor.current.column];
@@ -1013,6 +1067,23 @@ void process_command(KEY key) {
             print_command_message("은신처 건설 - [Space]건설 [ESC]취소 (비용: 6 내구도: 25)");
             break;
 
+        case k_f:  // 프레멘 생산
+            if (resource.spice < 5) {
+                print_system_message("스파이스가 부족합니다!");
+            }
+            else if (resource.population + 2 > resource.population_max) {
+                print_system_message("인구 수 제한을 초과했습니다!");
+            }
+            else {
+                POSITION spawn_pos = {
+                    selected_building.position.row - 1,
+                    selected_building.position.column
+                };
+                init_combat_unit(spawn_pos, 'F', true);
+                resource.spice -= 5;
+                print_system_message("프레멘이 생산되었습니다!");
+            }
+            break;
         case k_space:
             if (building_state.building_type != ' ') {
                 if (can_build_here()) {
@@ -1035,7 +1106,6 @@ void process_command(KEY key) {
     }
     else if (selected_building.type == 'B' && selected_building.is_ally) {
         switch (key) {
-            // 생산 위치를 초기 하베스터 근처로 수정
         case k_h:  // 하베스터 생산
             if (resource.spice < 5) {
                 print_system_message("스파이스가 부족합니다!");
@@ -1047,16 +1117,57 @@ void process_command(KEY key) {
                 print_system_message("더 이상 하베스터를 생산할 수 없습니다!");
             }
             else {
-                // 생산 위치 설정 (초기 하베스터 근처)
                 POSITION new_pos = {
-                    Harverster.pos1.row,  // 초기 하베스터와 같은 row
-                    Harverster.pos1.column + 1  // 초기 하베스터 옆에 생성
+                    Harverster.pos1.row,
+                    Harverster.pos1.column + 1
                 };
-
                 init_harvester(new_pos, true);
                 resource.spice -= 5;
                 resource.population += 5;
                 print_system_message("하베스터가 생산되었습니다!");
+            }
+            break;
+
+        case k_l:  // 보병 생산
+            if (resource.spice < 1) {
+                print_system_message("스파이스가 부족합니다!");
+            }
+            else if (resource.population + 1 > resource.population_max) {
+                print_system_message("인구 수 제한을 초과했습니다!");
+            }
+            else {
+                POSITION spawn_pos = {
+                    selected_building.position.row - 1,
+                    selected_building.position.column
+                };
+                init_combat_unit(spawn_pos, 'S', true);
+                print_system_message("보병이 생산되었습니다!");
+            }
+            break;
+
+        case k_esc:
+            selected_building.is_selected = false;
+            selected_building.type = ' ';
+            print_command_message("B: 건설");
+            break;
+        }
+    }
+    else if (selected_building.type == 'S' && selected_building.is_ally) {
+        switch (key) {
+        case k_f:  // 프레멘 생산
+            if (resource.spice < 5) {
+                print_system_message("스파이스가 부족합니다!");
+            }
+            else if (resource.population + 2 > resource.population_max) {
+                print_system_message("인구 수 제한을 초과했습니다!");
+            }
+            else {
+                POSITION spawn_pos = {
+                    selected_building.position.row - 1,
+                    selected_building.position.column
+                };
+                init_combat_unit(spawn_pos, 'F', true);
+                print_system_message("프레멘이 생산되었습니다!");
             }
             break;
 
@@ -1125,7 +1236,6 @@ void select_building(void) {
     selected_building.is_selected = false;
     selected_building.type = ' ';
 
-    // 유닛이 있는 경우 유닛 선택 함수 호출
     if (unit != -1) {
         select_unit();
         return;
@@ -1134,22 +1244,41 @@ void select_building(void) {
     clean_status();
     print_terrain();
 
-    // 건물 선택 및 명령 처리
-    if (terrain == 'B' &&
-        cursor.current.row >= ally_base.pos1.row &&
-        cursor.current.row <= ally_base.pos4.row &&
-        cursor.current.column >= ally_base.pos1.column &&
-        cursor.current.column <= ally_base.pos4.column) {
-        //본진에 대고 스페이스바 눌렀는지 체크
-        selected_building.type = 'B';
+    if (terrain == 'B') {
+        selected_building.position = cursor.current;
+        selected_building.is_selected = true;
+
+        // 아군 본진인지 확인
+        if (cursor.current.row >= ally_base.pos1.row &&
+            cursor.current.row <= ally_base.pos4.row &&
+            cursor.current.column >= ally_base.pos1.column &&
+            cursor.current.column <= ally_base.pos4.column) {
+            selected_building.type = 'B';
+            selected_building.is_ally = true;
+            print_command_message("=본진= H:하베스터 생산 | L:보병 생산 | ESC:취소");
+            print_system_message("아군 본진을 선택했습니다");
+        }
+        // 아군 병영인지 확인 (장판 위에 지은 병영)
+        else if (map[0][cursor.current.row][cursor.current.column] == 'B') {
+            selected_building.type = 'B';
+            selected_building.is_ally = true;
+            print_command_message("=병영= L:보병 생산 | ESC:취소");
+            print_system_message("아군 병영을 선택했습니다");
+        }
+        else {
+            print_system_message("적군 본진을 선택했습니다");
+        }
+    }
+    else if (terrain == 'S') {  // 은신처 선택 수정
+        selected_building.type = 'S';
         selected_building.position = cursor.current;
         selected_building.is_selected = true;
         selected_building.is_ally = true;
 
-        print_command_message("=본진= H:하베스터 생산 | ESC:취소");
-        print_system_message("아군 본진을 선택했습니다");
+        print_command_message("=은신처= F:프레멘 생산 | ESC:취소");
+        print_system_message("아군 은신처를 선택했습니다");
     }
-    // 나머지 지형/건물 선택
+    // 나머지 지형/건물 선택 부분은 그대로 유지
     else if (terrain == 'B') {
         print_system_message("적군 본진을 선택했습니다");
     }
@@ -1730,4 +1859,241 @@ void print_harvester_info(HARVESTER* h) {
     }
 
     print_command_message("M: 이동 | H: 수확 | ESC: 취소");
+}
+
+
+// 전투 유닛 초기화 함수
+void init_combat_unit(POSITION pos, char type, bool is_ally) {
+    if (map[1][pos.row][pos.column] != -1) {
+        // 이미 유닛이 있는 경우
+        POSITION new_pos = pos;
+        // 주변 빈 공간 찾기
+        if (map[1][pos.row - 1][pos.column] == -1) new_pos.row = pos.row - 1;
+        else if (map[1][pos.row][pos.column - 1] == -1) new_pos.column = pos.column - 1;
+        else if (map[1][pos.row][pos.column + 1] == -1) new_pos.column = pos.column + 1;
+        else if (map[1][pos.row + 1][pos.column] == -1) new_pos.row = pos.row + 1;
+        pos = new_pos;
+    }
+
+    COMBAT_UNIT unit;
+    unit.pos = pos;
+    unit.target_pos = pos;
+    unit.origin_pos = pos;
+    unit.type = type;
+    unit.is_ally = is_ally;
+    unit.is_selected = false;
+    unit.state = UNIT_STATE_IDLE;
+    unit.is_patrolling = false;
+    unit.patrol_forward = true;
+
+    if (type == 'S') {
+        unit.speed = 1000;
+    }
+    else if (type == 'F') {
+        unit.speed = 400;
+    }
+    unit.next_move_time = sys_clock + unit.speed;
+
+    map[1][pos.row][pos.column] = type;
+}
+
+// 유닛 생산 가능 여부 확인
+bool can_produce_soldier(void) {
+    return (resource.spice >= 1 && resource.population + 1 <= resource.population_max);
+}
+
+bool can_produce_fremen(void) {
+    return (resource.spice >= 5 && resource.population + 2 <= resource.population_max);
+}
+
+// 전투 유닛 명령 처리 함수
+void process_combat_unit_command(COMBAT_UNIT* unit, KEY key, POSITION target) {
+    if (!unit->is_selected) {
+        return;
+    }
+
+    switch (key) {
+    case k_m:  // 이동 명령
+        unit->state = UNIT_STATE_WAIT_MOVE_POS;
+        unit->is_patrolling = false;
+        print_system_message("이동할 위치를 선택하고 스페이스바를 눌러주세요.");
+        break;
+
+    case k_t:  // 순찰 명령
+        unit->state = UNIT_STATE_WAIT_PATROL_POS;
+        unit->patrol_pos = unit->pos;
+        unit->origin_pos = unit->pos;
+        unit->is_patrolling = true;
+        unit->patrol_forward = true;
+        print_system_message("순찰할 위치를 선택하고 스페이스바를 눌러주세요.");
+        break;
+
+    case k_space:  // 위치 확정
+        if (unit->state == UNIT_STATE_WAIT_MOVE_POS) {
+            unit->target_pos = cursor.current;
+            unit->state = UNIT_STATE_MOVING;
+            print_system_message("선택한 위치로 이동합니다.");
+        }
+        else if (unit->state == UNIT_STATE_WAIT_PATROL_POS) {
+            unit->patrol_pos = cursor.current;
+            unit->state = UNIT_STATE_PATROL;
+            print_system_message("순찰을 시작합니다.");
+        }
+        break;
+
+    case k_esc:
+        unit->is_selected = false;
+        clean_status();
+        print_command_message("B: 건설");
+        break;
+    }
+}
+
+// 모든 전투 유닛 업데이트
+void update_all_combat_units(void) {
+    for (int i = 0; i < MAP_HEIGHT; i++) {
+        for (int j = 0; j < MAP_WIDTH; j++) {
+            if (map[1][i][j] == 'S' || map[1][i][j] == 'F') {
+                COMBAT_UNIT unit;
+                unit.pos.row = i;
+                unit.pos.column = j;
+                unit.type = map[1][i][j];
+                update_combat_unit(&unit);
+            }
+        }
+    }
+}
+// 전투 유닛 정보 출력
+void print_combat_unit_info(COMBAT_UNIT* unit) {
+    POSITION pos;
+    pos.row = 2;
+    pos.column = MAP_WIDTH + 4;
+
+    clean_status();
+
+    gotoxy(pos);
+    printf("=== %s 정보 ===", unit->type == 'S' ? "보병" : "프레멘");
+
+    pos.row += 2;
+    gotoxy(pos);
+    printf("위치: (%d, %d)", unit->pos.row, unit->pos.column);
+
+    pos.row += 2;
+    gotoxy(pos);
+    printf("상태: ");
+    switch (unit->state) {
+    case UNIT_STATE_IDLE: printf("대기 중"); break;
+    case UNIT_STATE_MOVING: printf("이동 중"); break;
+    case UNIT_STATE_PATROL: printf("순찰 중"); break;
+    case UNIT_STATE_WAIT_MOVE_POS: printf("이동 위치 대기 중"); break;
+    case UNIT_STATE_WAIT_PATROL_POS: printf("순찰 위치 대기 중"); break;
+    default: printf("대기 중"); break;
+    }
+
+    print_command_message("M: 이동 | T: 순찰 | ESC: 취소");
+}
+
+// 전투 유닛 업데이트 함수
+void update_combat_unit(COMBAT_UNIT* unit) {
+    if (sys_clock <= unit->next_move_time) {
+        return;
+    }
+
+    switch (unit->state) {
+    case UNIT_STATE_MOVING:
+        if (unit->pos.row == unit->target_pos.row &&
+            unit->pos.column == unit->target_pos.column) {
+            unit->state = UNIT_STATE_IDLE;
+            print_system_message("목표 지점에 도착했습니다.");
+        }
+        else {
+            move_combat_unit(unit);
+        }
+        break;
+
+    case UNIT_STATE_PATROL:
+        if (unit->pos.row == unit->patrol_pos.row &&
+            unit->pos.column == unit->patrol_pos.column) {
+            unit->patrol_forward = !unit->patrol_forward;
+            print_system_message(unit->patrol_forward ? "순찰 방향: 목표 지점으로" : "순찰 방향: 시작 지점으로");
+        }
+
+        if (unit->patrol_forward) {
+            unit->target_pos = unit->patrol_pos;
+        }
+        else {
+            unit->target_pos = unit->origin_pos;
+        }
+
+        move_combat_unit(unit);
+        break;
+    }
+}
+
+
+// 전투 유닛 이동 함수 구현
+void move_combat_unit(COMBAT_UNIT* unit) {
+    if (sys_clock <= unit->next_move_time) {
+        return;
+    }
+
+    // 현재 위치에서 유닛을 제거
+    map[1][unit->pos.row][unit->pos.column] = -1;
+
+    // 이동 방향 결정
+    if (unit->pos.column != unit->target_pos.column) {
+        unit->pos.column += (unit->target_pos.column > unit->pos.column) ? 1 : -1;
+    }
+    else if (unit->pos.row != unit->target_pos.row) {
+        unit->pos.row += (unit->target_pos.row > unit->pos.row) ? 1 : -1;
+    }
+
+    // 새 위치에 유닛 표시
+    map[1][unit->pos.row][unit->pos.column] = unit->type;
+
+    // 다음 이동 시간 설정
+    unit->next_move_time = sys_clock + unit->speed;
+}
+// 보병 생산 함수
+void produce_soldier(void) {
+    if (selected_building.type == 'B' && selected_building.is_ally) {
+        if (resource.spice < 1) {
+            print_system_message("스파이스가 부족합니다!");
+        }
+        else if (resource.population + 1 > resource.population_max) {
+            print_system_message("인구 수 제한을 초과했습니다!");
+        }
+        else {
+            POSITION spawn_pos = {
+                selected_building.position.row - 1,
+                selected_building.position.column
+            };
+            init_combat_unit(spawn_pos, 'S', true);
+            resource.spice -= 1;
+            resource.population += 1;
+            print_system_message("보병이 생산되었습니다!");
+        }
+    }
+}
+
+// 프레멘 생산 함수
+void produce_fremen(void) {
+    if (selected_building.type == 'S' && selected_building.is_ally) {
+        if (resource.spice < 5) {
+            print_system_message("스파이스가 부족합니다!");
+        }
+        else if (resource.population + 2 > resource.population_max) {
+            print_system_message("인구 수 제한을 초과했습니다!");
+        }
+        else {
+            POSITION spawn_pos = {
+                selected_building.position.row - 1,
+                selected_building.position.column
+            };
+            init_combat_unit(spawn_pos, 'F', true);
+            resource.spice -= 5;
+            resource.population += 2;
+            print_system_message("프레멘이 생산되었습니다!");
+        }
+    }
 }

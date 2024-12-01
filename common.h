@@ -52,7 +52,10 @@ typedef enum {
 	k_d,
 	k_g,
 	k_s,
-	k_m,
+	k_l,
+	k_f,
+	k_t,
+	k_m, d
 } KEY;
 
 /* ================= 구조체 정의 =================== */
@@ -217,4 +220,32 @@ typedef struct _harvester {
 } HARVESTER;
 
 void remove_unit_at(POSITION pos);
+
+// 유닛 상태 열거형 정의
+typedef enum {
+	UNIT_STATE_IDLE,           // 대기 상태
+	UNIT_STATE_MOVING,         // 이동 중
+	UNIT_STATE_PATROL,         // 순찰 중
+	UNIT_STATE_ATTACK,         // 공격 중
+	UNIT_STATE_WAIT_MOVE_POS,  // 이동 위치 선택 대기
+	UNIT_STATE_WAIT_PATROL_POS // 순찰 위치 선택 대기
+} UNIT_STATE;
+
+// 전투 유닛 구조체 
+typedef struct {
+	POSITION pos;           // 현재 위치
+	POSITION target_pos;    // 목표 위치
+	POSITION patrol_pos;    // 순찰 위치 (왕복 지점)
+	POSITION origin_pos;    // 순찰 시작 위치
+	char type;             // 유닛 타입 ('S':보병, 'F':프레멘)
+	int health;            // 체력
+	int damage;            // 공격력
+	int speed;             // 이동 속도
+	int next_move_time;    // 다음 이동 시간
+	bool is_ally;          // 아군 여부
+	bool is_selected;      // 선택 여부
+	UNIT_STATE state;      // 현재 상태
+	bool is_patrolling;    // 순찰 중인지 여부
+	bool patrol_forward;   // 순찰 방향 (true: 목표로, false: 시작점으로)
+} COMBAT_UNIT;
 #endif
