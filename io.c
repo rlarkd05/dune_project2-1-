@@ -36,6 +36,11 @@ KEY get_key(void) {
     case 'g': return k_g;
     case 's': return k_s;
     case 'b': return k_b;
+    case 'l': return k_l;
+    case 'f': return k_f;
+    case 't': return k_t;
+    case 'm': return k_m;
+    case 'v': return k_v;
     case 72:
     case 104: return k_h;
     case 224:

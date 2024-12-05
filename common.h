@@ -55,7 +55,8 @@ typedef enum {
 	k_l,
 	k_f,
 	k_t,
-	k_m, d
+	k_m,
+	k_v,
 } KEY;
 
 /* ================= 구조체 정의 =================== */
@@ -237,15 +238,15 @@ typedef struct {
 	POSITION target_pos;    // 목표 위치
 	POSITION patrol_pos;    // 순찰 위치 (왕복 지점)
 	POSITION origin_pos;    // 순찰 시작 위치
-	char type;             // 유닛 타입 ('S':보병, 'F':프레멘)
-	int health;            // 체력
-	int damage;            // 공격력
-	int speed;             // 이동 속도
-	int next_move_time;    // 다음 이동 시간
-	bool is_ally;          // 아군 여부
-	bool is_selected;      // 선택 여부
-	UNIT_STATE state;      // 현재 상태
-	bool is_patrolling;    // 순찰 중인지 여부
-	bool patrol_forward;   // 순찰 방향 (true: 목표로, false: 시작점으로)
+	char type;              // 유닛 타입 ('S':보병, 'F':프레멘)
+	int health;             // 체력
+	int damage;             // 공격력
+	int speed;              // 이동 속도
+	int next_move_time;     // 다음 이동 시간 (TICK 기준)
+	bool is_ally;           // 아군 여부
+	bool is_selected;       // 선택 여부
+	UNIT_STATE state;       // 현재 상태
+	bool is_patrolling;     // 순찰 중인지 여부
+	bool patrol_forward;    // 순찰 방향 (true: 목표로, false: 시작점으로)
 } COMBAT_UNIT;
 #endif
