@@ -230,7 +230,7 @@ const UnitInfo UNIT_INFO[] = {
         .symbol = 'F',
         .can_be_ally = true,
         .can_be_enemy = false,
-        .cost = 6
+        .cost = 5
     },
     [UNIT_TYPE_SOLDIER] = {
     .type = UNIT_TYPE_SOLDIER,
@@ -238,7 +238,7 @@ const UnitInfo UNIT_INFO[] = {
     .symbol = 'U',
     .can_be_ally = true,
     .can_be_enemy = false,
-    .cost = 4
+    .cost = 1
 },
     [UNIT_TYPE_TANK] = {
         .type = UNIT_TYPE_TANK,
@@ -246,7 +246,7 @@ const UnitInfo UNIT_INFO[] = {
         .symbol = 'T',
         .can_be_ally = false,
         .can_be_enemy = true,
-        .cost = 7
+        .cost = 12
     },
     [UNIT_TYPE_SANDWORM] = {
         .type = UNIT_TYPE_SANDWORM,
@@ -263,7 +263,7 @@ const BUILDING_INFO buildings[] = {
         .type = BD_PLATE,
         .name = "장판",
         .shortcut = "P: Plate",
-        .cost = 100,
+        .cost = 1,
         .durability = 0,
         .effect = "건물 짓기 전에 깔기",
         .production = "없음"
@@ -272,8 +272,8 @@ const BUILDING_INFO buildings[] = {
         .type = BD_DORM,
         .name = "숙소",
         .shortcut = "D: Dormitory",
-        .cost = 210,
-        .durability = 0,
+        .cost = 2,
+        .durability = 10,
         .effect = "인구 최대치 증가(10)",
         .production = "없음"
     },
@@ -281,8 +281,8 @@ const BUILDING_INFO buildings[] = {
         .type = BD_GARAGE,
         .name = "창고",
         .shortcut = "G: Garage",
-        .cost = 410,
-        .durability = 0,
+        .cost = 4,
+        .durability = 10,
         .effect = "스파이스 보관 최대치 증가(10)",
         .production = "없음"
     },
@@ -290,8 +290,8 @@ const BUILDING_INFO buildings[] = {
         .type = BD_BARRACKS,
         .name = "아트레이디스 병영",
         .shortcut = "B: Barracks",
-        .cost = 420,
-        .durability = 0,
+        .cost = 4,
+        .durability = 20,
         .effect = "보병 생산",
         .production = "보병(S: Soldier)"
     },
@@ -299,8 +299,8 @@ const BUILDING_INFO buildings[] = {
         .type = BD_SHELTER,
         .name = "은신처",
         .shortcut = "S: Shelter",
-        .cost = 530,
-        .durability = 0,
+        .cost = 5,
+        .durability = 30,
         .effect = "특수유닛 생산",
         .production = "프레멘(F: Fremen)"
     }
@@ -719,11 +719,10 @@ POSITION sandworm_next_position(void) {
 
     POSITION next_pos = pmove(obj.pos, dir);
 
-    // 맵 범위 체크
+    // 맵 범위 체크 및 장애물 처리
     if (1 <= next_pos.row && next_pos.row <= MAP_HEIGHT - 2 &&
         1 <= next_pos.column && next_pos.column <= MAP_WIDTH - 2) {
-        // 바위를 만났을 때 방향 전환
-        if (map[0][next_pos.row][next_pos.column] == 'R') {
+        if (map[0][next_pos.row][next_pos.column] == 'R') { // 바위인 경우 방향 변경
             if (dir == d_up || dir == d_down) {
                 dir = (diff.column >= 0) ? d_right : d_left;
             }
@@ -758,11 +757,10 @@ POSITION sandworm1_next_position(void) {
 
     POSITION next_pos = pmove(obj1.pos, dir);
 
-    // 맵 범위 체크
+    // 맵 범위 체크 및 장애물 처리
     if (1 <= next_pos.row && next_pos.row <= MAP_HEIGHT - 2 &&
         1 <= next_pos.column && next_pos.column <= MAP_WIDTH - 2) {
-        // 바위를 만났을 때 방향 전환
-        if (map[0][next_pos.row][next_pos.column] == 'R') {
+        if (map[0][next_pos.row][next_pos.column] == 'R') { // 바위인 경우 방향 변경
             if (dir == d_up || dir == d_down) {
                 dir = (diff.column >= 0) ? d_right : d_left;
             }
@@ -776,6 +774,7 @@ POSITION sandworm1_next_position(void) {
     return obj1.pos;
 }
 
+
 void sandworm_move(void) {
     if (sys_clock <= obj.next_move_time) {
         return;
@@ -784,10 +783,10 @@ void sandworm_move(void) {
     POSITION next_pos = sandworm_next_position();
     map[1][obj.pos.row][obj.pos.column] = -1;
 
-    // 하베스터가 있는 경우
-    if (map[1][next_pos.row][next_pos.column] == 'H') {
-        // units 배열에서도 제거
-        remove_unit_at(next_pos);
+    // 유닛이 있는 경우
+    char unit = map[1][next_pos.row][next_pos.column];
+    if (unit == 'H' || unit == 'U' || unit == 'F') {
+        remove_unit_at(next_pos); // 유닛 제거
     }
 
     // 스파이스 생성 시도
@@ -806,10 +805,10 @@ void sandworm1_move(void) {
     POSITION next_pos = sandworm1_next_position();
     map[1][obj1.pos.row][obj1.pos.column] = -1;
 
-    // 하베스터가 있는 경우
-    if (map[1][next_pos.row][next_pos.column] == 'H') {
-        // units 배열에서도 제거
-        remove_unit_at(next_pos);
+    // 유닛이 있는 경우
+    char unit = map[1][next_pos.row][next_pos.column];
+    if (unit == 'H' || unit == 'U' || unit == 'F') {
+        remove_unit_at(next_pos); // 유닛 제거
     }
 
     // 스파이스 생성 시도
@@ -819,6 +818,7 @@ void sandworm1_move(void) {
     map[1][obj1.pos.row][obj1.pos.column] = obj1.repr;
     obj1.next_move_time = sys_clock + obj1.speed;
 }
+
 //어떤 지형인지 나오게함
 void print_terrain(void) {
     POSITION pos;
@@ -1006,17 +1006,20 @@ void clean_status(void) {
 
 // 가장 가까운 유닛을 찾는 함수
 POSITION find_nearest_unit(POSITION current_pos) {
-    POSITION nearest = { -1, -1 };  // 초기값을 -1, -1로 변경
+    POSITION nearest = { -1, -1 };  // 초기값 설정
     int min_distance = MAP_WIDTH * MAP_HEIGHT;
-    bool found_unit = false;  // 유닛 발견 여부 체크
+    bool found_unit = false;  // 유닛 발견 여부
 
-    // 모든 맵을 순회하면서 유닛 찾기
+    // 모든 맵을 순회하며 유닛 찾기
     for (int i = 0; i < MAP_HEIGHT; i++) {
         for (int j = 0; j < MAP_WIDTH; j++) {
-            if (map[1][i][j] == 'H') {
+            char unit = map[1][i][j];
+            // 하베스터(H), 보병(U), 프레멘(F)를 고려
+            if (unit == 'H' || unit == 'U' || unit == 'F') {
                 POSITION unit_pos = { i, j };
                 int distance = abs(current_pos.row - i) + abs(current_pos.column - j);
-                if (distance < min_distance && distance > 0) {
+
+                if (distance < min_distance) {
                     min_distance = distance;
                     nearest = unit_pos;
                     found_unit = true;
@@ -1025,7 +1028,7 @@ POSITION find_nearest_unit(POSITION current_pos) {
         }
     }
 
-    // 유닛을 못 찾았을 경우 랜덤한 목적지 반환
+    // 유닛이 없으면 랜덤 위치 반환
     if (!found_unit) {
         nearest.row = 1 + (rand() % (MAP_HEIGHT - 2));
         nearest.column = 1 + (rand() % (MAP_WIDTH - 2));
@@ -1033,6 +1036,7 @@ POSITION find_nearest_unit(POSITION current_pos) {
 
     return nearest;
 }
+
 // 샌드웜이 스파이스를 생성하는 함수
 void spawn_spice(POSITION pos) {
     if (rand() % 100 < 15 && map[0][pos.row][pos.column] == ' ') {  // 15% 확률
@@ -1484,52 +1488,25 @@ bool create_new_unit(char type, POSITION pos, bool is_ally) {
 
 // 유닛 제거 함수
 void remove_unit_at(POSITION pos) {
-    // 하베스터 배열에서 해당 위치의 하베스터 찾아서 제거
+    // 하베스터 제거
     for (int i = 0; i < harvester_count; i++) {
         if (harvesters[i].pos.row == pos.row &&
             harvesters[i].pos.column == pos.column) {
-            // 아군 하베스터인 경우 인구수 감소
-            if (harvesters[i].is_ally) {
-                resource.population -= 5;
-            }
-
-            // 하베스터의 상태 초기화
-            harvesters[i].state = H_IDLE;
-            harvesters[i].is_selected = false;
-            harvesters[i].auto_harvest = false;
-            harvesters[i].spice_carried = 0;
-
-            // 하베스터 배열에서 제거 (마지막 하베스터를 현재 위치로 이동)
-            if (i < harvester_count - 1) {
-                harvesters[i] = harvesters[harvester_count - 1];
-            }
-            harvester_count--;
-
-            // 선택 상태였다면 전역 선택 상태도 해제
-            if (harvester_selected) {
-                harvester_selected = false;
-                clean_status();
-                print_command_message("B: 건설");
-            }
-            break;
+            if (harvesters[i].is_ally) resource.population -= 5; // 아군 하베스터의 인구 감소
+            harvesters[i] = harvesters[--harvester_count];       // 하베스터 제거
+            return;
         }
     }
 
-    // units 배열에서도 제거
-    for (int i = 0; i < unit_count; i++) {
-        if (units[i].pos1.row == pos.row && units[i].pos1.column == pos.column) {
-            // 맵에서 유닛 제거
-            map[units[i].layer][pos.row][pos.column] = -1;
-
-            // 배열에서 유닛 제거 (마지막 유닛을 현재 위치로 이동)
-            if (i < unit_count - 1) {
-                units[i] = units[unit_count - 1];
-            }
-            unit_count--;
-            break;
-        }
+    // 보병 및 프레멘 제거
+    COMBAT_UNIT* unit = &combat_units[pos.row][pos.column];
+    if (unit->type == 'U' || unit->type == 'F') {
+        resource.population -= (unit->type == 'U') ? 1 : 2; // 인구 감소
+        map[1][pos.row][pos.column] = -1;  // 맵에서 제거
+        unit->type = 0;                    // 초기화
     }
 }
+
 void init_harvester(POSITION pos, bool is_ally) {
     if (harvester_count >= MAX_HARVESTERS) return;
 
@@ -1974,35 +1951,29 @@ void process_combat_unit_command(COMBAT_UNIT* unit, KEY key, POSITION target) {
     // 선택된 유닛의 상태를 전역 변수에도 복사
     selected_combat_unit = *unit;
 }
-// 전투 유닛 이동 처리
+// 보병 및 프레멘의 이동 처리 함수
 void move_combat_unit(COMBAT_UNIT* unit) {
-    if (sys_clock <= unit->next_move_time) {
+    if (sys_clock < unit->next_move_time) {
+        return; // 아직 이동할 시간이 아님
+    }
+
+    POSITION next_pos = calculate_next_position(unit);
+
+    // 목표 위치에 도달했는지 확인
+    if (unit->pos.row == unit->target_pos.row && unit->pos.column == unit->target_pos.column) {
+        unit->state = UNIT_STATE_IDLE; // 도달 시 상태 전환
         return;
     }
 
-    // 현재 위치에서 목표 위치까지의 차이 계산
-    int row_diff = unit->target_pos.row - unit->pos.row;
-    int col_diff = unit->target_pos.column - unit->pos.column;
-
-    // 이전 위치에서 유닛 제거
+    // 맵에서 이전 위치 지우기
     map[1][unit->pos.row][unit->pos.column] = -1;
 
-    // 가로 이동
-    if (col_diff != 0) {
-        unit->pos.column += (col_diff > 0) ? 1 : -1;
-    }
-    // 세로 이동
-    else if (row_diff != 0) {
-        unit->pos.row += (row_diff > 0) ? 1 : -1;
-    }
-
-    // 새 위치에 유닛 표시
+    // 새 위치로 이동
+    unit->pos = next_pos;
     map[1][unit->pos.row][unit->pos.column] = unit->type;
 
-    // 다음 이동 시간 설정
-    unit->next_move_time = sys_clock + unit->speed;
+    unit->next_move_time = sys_clock + unit->speed; // 다음 이동 시간 설정
 }
-
 void update_all_combat_units(void) {
     for (int i = 0; i < MAP_HEIGHT; i++) {
         for (int j = 0; j < MAP_WIDTH; j++) {
@@ -2048,41 +2019,52 @@ void update_all_combat_units(void) {
 // 보병 및 프레멘의 다음 이동 위치를 계산하는 함수
 POSITION calculate_next_position(COMBAT_UNIT* unit) {
     POSITION diff = psub(unit->target_pos, unit->pos);
-    DIRECTION dir;
+    DIRECTION primary_dir, secondary_dir;
     POSITION next_pos;
 
+    // 우선 이동 방향 계산
     if (abs(diff.row) > abs(diff.column)) {
-        dir = (diff.row > 0) ? d_down : d_up;
+        primary_dir = (diff.row > 0) ? d_down : d_up;
+        secondary_dir = (diff.column > 0) ? d_right : d_left;
     }
     else {
-        dir = (diff.column > 0) ? d_right : d_left;
+        primary_dir = (diff.column > 0) ? d_right : d_left;
+        secondary_dir = (diff.row > 0) ? d_down : d_up;
     }
 
-    next_pos = pmove(unit->pos, dir);
+    // 1. 주 이동 방향 시도
+    next_pos = pmove(unit->pos, primary_dir);
+    if (next_pos.row >= 1 && next_pos.row < MAP_HEIGHT - 1 &&
+        next_pos.column >= 1 && next_pos.column < MAP_WIDTH - 1 &&
+        map[0][next_pos.row][next_pos.column] != 'R' &&
+        map[1][next_pos.row][next_pos.column] == -1) {
+        return next_pos;
+    }
 
-    // Collision detection and avoidance
-    if (next_pos.row < 1 || next_pos.row >= MAP_HEIGHT - 1 ||
-        next_pos.column < 1 || next_pos.column >= MAP_WIDTH - 1 ||
-        map[0][next_pos.row][next_pos.column] == 'R' ||
-        map[1][next_pos.row][next_pos.column] != -1) {
+    // 2. 보조 이동 방향 시도
+    next_pos = pmove(unit->pos, secondary_dir);
+    if (next_pos.row >= 1 && next_pos.row < MAP_HEIGHT - 1 &&
+        next_pos.column >= 1 && next_pos.column < MAP_WIDTH - 1 &&
+        map[0][next_pos.row][next_pos.column] != 'R' &&
+        map[1][next_pos.row][next_pos.column] == -1) {
+        return next_pos;
+    }
 
-        if (dir == d_up || dir == d_down) {
-            next_pos = pmove(unit->pos, (diff.column > 0) ? d_right : d_left);
-        }
-        else {
-            next_pos = pmove(unit->pos, (diff.row > 0) ? d_down : d_up);
-        }
-
-        if (next_pos.row < 1 || next_pos.row >= MAP_HEIGHT - 1 ||
-            next_pos.column < 1 || next_pos.column >= MAP_WIDTH - 1 ||
-            map[0][next_pos.row][next_pos.column] == 'R' ||
-            map[1][next_pos.row][next_pos.column] != -1) {
-            return unit->pos;
+    // 3. 모든 방향 탐색
+    for (DIRECTION d = d_up; d <= d_down; d++) {
+        POSITION alt_pos = pmove(unit->pos, d);
+        if (alt_pos.row >= 1 && alt_pos.row < MAP_HEIGHT - 1 &&
+            alt_pos.column >= 1 && alt_pos.column < MAP_WIDTH - 1 &&
+            map[0][alt_pos.row][alt_pos.column] != 'R' &&
+            map[1][alt_pos.row][alt_pos.column] == -1) {
+            return alt_pos;
         }
     }
 
-    return next_pos;
+    // 4. 이동 불가 시 제자리 유지
+    return unit->pos;
 }
+
 
 
 // 전투 유닛 정보 출력
@@ -2122,4 +2104,15 @@ POSITION get_next_combat_position(COMBAT_UNIT* unit) {
 
     // 가로 이동 먼저
     if (next_pos.column != target.column) {
-        next_pos.c
+        next_pos.column += (target.column > next_pos.column) ? 1 : -1;
+    }
+    // 그 다음 세로 이동
+    else if (next_pos.row != target.row) {
+        next_pos.row += (target.row > next_pos.row) ? 1 : -1;
+    }
+
+    return next_pos;
+}
+
+// 보병 생산 함수
+void produce_soldier(void) {

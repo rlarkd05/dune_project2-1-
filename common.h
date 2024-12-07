@@ -241,6 +241,8 @@ typedef struct {
 	char type;              // 유닛 타입 ('S':보병, 'F':프레멘)
 	int health;             // 체력
 	int damage;             // 공격력
+	int vision_range;       // 시야 범위
+	int attack_cooldown;    // 공격 주기 (ms)
 	int speed;              // 이동 속도
 	int next_move_time;     // 다음 이동 시간 (TICK 기준)
 	bool is_ally;           // 아군 여부
