@@ -179,8 +179,9 @@ typedef enum {
 	UNIT_TYPE_HARVESTER,
 	UNIT_TYPE_FREMEN,
 	UNIT_TYPE_SOLDIER,
-	UNIT_TYPE_TANK,
-	UNIT_TYPE_SANDWORM
+	UNIT_TYPE_TANK, SD,
+	UNIT_TYPE_FIGHTER,
+	UNIT_TYPE_SANDWORM,
 } UnitType;
 
 typedef struct {
@@ -250,5 +251,6 @@ typedef struct {
 	UNIT_STATE state;       // 현재 상태
 	bool is_patrolling;     // 순찰 중인지 여부
 	bool patrol_forward;    // 순찰 방향 (true: 목표로, false: 시작점으로)
+	int next_attack_time;   // 다음 공격 시간 (ms)
 } COMBAT_UNIT;
 #endif
